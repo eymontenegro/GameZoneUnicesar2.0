@@ -63,4 +63,31 @@ public void registerConsole(String id, String title, double price, int stock, St
     products.add(newConsole);
     repository.save(products);
  }
+ /**
+     * Returns the full list of currently available products.
+     *
+     * @return the list of products in inventory
+     */
+
+public List<Product> listAll() {
+    return products;
+}
+/**
+     * Reduces the stock of a specific product, identified by its id,
+     * and saves the updated inventory to the file.
+     *
+     * @param productId the id of the product to update
+     * @param quantity the quantity to subtract from the product's stock
+     * @throws IllegalArgumentException if no product with that id exists
+     */
+public void updateStock(String productId, int quantity) {
+    for (Product product : products) {
+        if (product.getId().equals(productId)) {
+            product.reduceStock(quantity);
+            repository.save(products);
+            return; 
+        }
+         } 
+        throw new IllegalArgumentException("Unknown product id : " + productId);
+    }
 }
