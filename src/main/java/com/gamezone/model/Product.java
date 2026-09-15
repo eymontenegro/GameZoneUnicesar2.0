@@ -32,3 +32,25 @@ public abstract class Product {
     public int getStock() {
         return stock;
     }
+         /**
+     * Builds a description of the product, combining common and
+     * particular attributes. Each subclass provides its own version.
+     *
+     * @return a text description of the product
+     */
+   public abstract String describe();
+   
+   /**
+     * Reduces the available stock by the given quantity.
+     *
+     * @param quantity the number of units to subtract from stock
+     * @throws IllegalArgumentException if quantity is greater than the available stock
+     */
+   public void reduceStock (int quantity ){
+       if(stock < quantity){
+           throw new IllegalArgumentException("Insufficient Stock:available " + stock + " requested " + quantity );
+       }
+       stock = stock - quantity;
+   }
+     
+}
