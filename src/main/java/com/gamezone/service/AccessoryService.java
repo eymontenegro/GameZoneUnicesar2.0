@@ -44,6 +44,7 @@ public class AccessoryService {
      */
     public void registerController(String id, String title, double price, int stock,
                                     String connectionType, List<String> compatibleConsoleIds) {
+        validateBasicData(price, stock);
         Controller newController = new Controller(id, title, price, stock, connectionType, compatibleConsoleIds);
         accessories.add(newController);
         repository.saveAll(accessories);
@@ -62,6 +63,7 @@ public class AccessoryService {
      */
     public void registerCable(String id, String title, double price, int stock,
                                double length, String connectorType) {
+        validateBasicData(price, stock);
         Cable newCable = new Cable(id, title, price, stock, length, connectorType);
         accessories.add(newCable);
         repository.saveAll(accessories);
@@ -81,6 +83,7 @@ public class AccessoryService {
      */
     public void registerMemory(String id, String title, double price, int stock,
                                 int capacity, String type, List<String> compatibleConsoleIds) {
+        validateBasicData(price, stock);
         Memory newMemory = new Memory(id, title, price, stock, capacity, type, compatibleConsoleIds);
         accessories.add(newMemory);
         repository.saveAll(accessories);
@@ -169,5 +172,22 @@ public class AccessoryService {
             }
         }
         throw new IllegalArgumentException("Unknown accessory id: " + accessoryId);
+    }
+
+    /**
+     * Validates that a price and stock value are not negative before
+     * creating a new accessory.
+     *
+     * @param price the price to validate
+     * @param stock the stock quantity to validate
+     * @throws IllegalArgumentException if price or stock is negative
+     */
+    private void validateBasicData(double price, int stock) {
+        if (price < 0) {
+            throw new IllegalArgumentException("Price cannot be negative");
+        }
+        if (stock < 0) {
+            throw new IllegalArgumentException("Stock cannot be negative");
+        }
     }
 }
