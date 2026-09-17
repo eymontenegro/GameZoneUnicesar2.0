@@ -30,7 +30,7 @@ public class Console extends Product {
 
     @Override
     public String describe() {
-        return   getTitle()+ " is a console by " + brand + " , model " + model + " , generation " + generation ;   }
+        return   getTitle()+ " es una consola de " + brand + " , modelo " + model + " , generacion " + generation ;   }
  
     
     

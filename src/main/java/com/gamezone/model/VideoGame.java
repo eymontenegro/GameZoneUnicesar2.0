@@ -31,6 +31,6 @@ public class VideoGame extends Product {
     
     @Override
 public String describe() {
-    return getTitle() + " is a video game for " + platform + " , genre " + genre + " , rated " + ageRating ; 
+    return getTitle() + " es un videojuego para " + platform + " , genero " + genre + " , calificado " + ageRating ; 
 }
 }

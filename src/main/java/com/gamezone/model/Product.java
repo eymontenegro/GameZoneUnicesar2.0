@@ -48,7 +48,7 @@ public abstract class Product {
      */
    public void reduceStock (int quantity ){
        if(stock < quantity){
-           throw new IllegalArgumentException("Insufficient Stock:available " + stock + " requested " + quantity );
+           throw new IllegalArgumentException(" Stock insuficiente: disponible " + stock + " solicitado " + quantity );
        }
        stock = stock - quantity;
    }
