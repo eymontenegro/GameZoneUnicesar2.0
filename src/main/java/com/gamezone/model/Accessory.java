@@ -20,7 +20,7 @@ public abstract class Accessory extends Product {
      * @param stock the initial available stock
      * @param compatibleConsoleIds list of console IDs this accessory is compatible with
      */
-    public Accessory(String id, String title, double price, int stock) {
+    public Accessory(String id, String title, double price, int stock, List<String> compatibleConsoleIds) {
         super(id, title, price, stock);
        this.compatibleConsoleIds = (compatibleConsoleIds != null) ? compatibleConsoleIds : new ArrayList<>(); 
     }
