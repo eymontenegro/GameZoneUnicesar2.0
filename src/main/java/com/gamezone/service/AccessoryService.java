@@ -161,9 +161,13 @@ public class AccessoryService {
      *
      * @param accessoryId the id of the accessory to update
      * @param quantity the quantity to subtract from the accessory's stock
-     * @throws IllegalArgumentException if no accessory with that id exists
+     * @throws IllegalArgumentException if no accessory with that id exists,
+     *                                  or if the quantity is negative
      */
     public void updateStock(String accessoryId, int quantity) {
+        if (quantity < 0) {
+            throw new IllegalArgumentException("Quantity cannot be negative");
+        }
         for (Accessory accessory : accessories) {
             if (accessory.getId().equals(accessoryId)) {
                 accessory.reduceStock(quantity);
