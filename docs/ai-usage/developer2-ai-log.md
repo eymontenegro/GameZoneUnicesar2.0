@@ -23,3 +23,24 @@ Claude (Anthropic)
 
 - Asked how to organize packages correctly inside a Maven project (model, persistence, service).
 - Asked for suggestions on English naming conventions for classes, attributes and methods.
+
+
+## Exam — Accessory Module (Requerimiento 1)
+
+### Tool used
+Claude (Anthropic)
+
+### How AI was used
+
+#### Git and PowerShell commands
+- Asked how to clone the repository, list and switch branches, and do add/commit/push following Conventional Commits.
+- Asked how to join a feature branch already created by another team member instead of duplicating it.
+
+#### Object-oriented design concepts
+- Asked why `Controller` and `Memory` implement the `ConsoleCompatible` interface instead of that behavior living in the abstract `Accessory` class, and what advantage that has over placing it directly in the superclass.
+- Asked why `Cable` does not need to implement `ConsoleCompatible` even though it is also an accessory.
+- Asked how a "type discriminator" works in a CSV file, to be able to reconstruct objects of different subclasses (`Controller`, `Cable`, `Memory`) when reading the file.
+- Asked why file-saving/loading logic should not live in the `model` package classes, and why it belongs in `persistence` instead.
+
+#### Implementation
+- Asked for help drafting the preloaded data file `accessories.csv`.
