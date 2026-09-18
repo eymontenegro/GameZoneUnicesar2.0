@@ -1,6 +1,6 @@
 # GameZoneUnicesar 🎮
 
-GameZoneUnicesar is a management system that allows a video game store to register and list its products, and keep track of its clients and employees, as well as register sales transactions.
+GameZoneUnicesar is a management system that allows a video game store to register and list its products, keep track of its clients and employees, register sales transactions, and apply promotional discounts automatically.
 
 ## 📋 Table of Contents
 
@@ -13,7 +13,7 @@ GameZoneUnicesar is a management system that allows a video game store to regist
 
 ## 🚀 Features & Modules
 
-The system is divided into four core modules:
+The system is divided into five core modules:
 
 **Product Module (Product):**
 - Management of two product types: Video Games (`VideoGame`) and Consoles (`Console`).
@@ -35,18 +35,26 @@ The system is divided into four core modules:
 - Transaction registration linking a client, a seller, and the products and/or accessories sold.
 - Automatic calculation of the sale total.
 - Coordination with the Product and Accessory modules to validate and update stock.
+- Automatic application of the best available promotion (if any) at the moment of registering the sale.
+
+**Promotion Module (Promotion):**
+- Management of three promotion types: Percentage Discounts (`PercentageDiscount`), Category Discounts (`CategoryDiscount`), and Bulk Purchase Discounts (`BulkPurchaseDiscount`).
+- Each promotion has a validity period (start and end date); only currently active promotions are considered.
+- When a sale is registered, the system evaluates all active promotions and automatically applies the one offering the highest monetary discount. Promotions are not cumulative — only one is applied per sale.
+- The sale receipt reflects the subtotal, the applied promotion's name (if any), the discount amount, and the final total.
+- Registration and listing of promotions, including listing only the currently active ones.
 
 ## 🏗️ System Architecture
 
 The project implements an Object-Oriented 4-Layer Architecture:
 
-**Layer 1: Domain/Model** — Contains the core entities and their inheritance relationships (`Product` → `VideoGame`/`Console`/`Accessory`, `Accessory` → `Controller`/`Cable`/`Memory`, `Person` → `Client`/`Seller`). Compatibility with consoles is modeled through the `ConsoleCompatible` interface, implemented by `Controller` and `Memory`.
+**Layer 1: Domain/Model** — Contains the core entities and their inheritance relationships (`Product` → `VideoGame`/`Console`/`Accessory`, `Accessory` → `Controller`/`Cable`/`Memory`, `Person` → `Client`/`Seller`, `Promotion` → `PercentageDiscount`/`CategoryDiscount`/`BulkPurchaseDiscount`). Compatibility with consoles is modeled through the `ConsoleCompatible` interface, implemented by `Controller` and `Memory`.
 
-**Layer 2: Persistence** — Repositories handling reading and writing to CSV files, including `AccessoryRepository` for the accessory module.
+**Layer 2: Persistence** — Repositories handling reading and writing to CSV files, including `AccessoryRepository` for the accessory module and `PromotionRepository` for the promotion module.
 
-**Layer 3: Service** — Business logic layer, processing rule validations and coordinating between modules (e.g., stock reduction during a sale, delegated to `ProductService` or `AccessoryService` depending on the item type sold).
+**Layer 3: Service** — Business logic layer, processing rule validations and coordinating between modules (e.g., stock reduction during a sale, delegated to `ProductService` or `AccessoryService` depending on the item type sold; best-promotion selection delegated to `PromotionService`).
 
-**Layer 4: UI** — Console-based menu for user interaction, including the "Accessory Management" submenu.
+**Layer 4: UI** — Console-based menu for user interaction, including the "Accessory Management" and "Promotion Management" submenus.
 
 ## 📁 Project Structure
 
@@ -59,7 +67,8 @@ GameZoneUnicesar/
 │   ├── clients.csv
 │   ├── sellers.csv
 │   ├── sales.csv
-│   └── sale_details.csv
+│   ├── sale_details.csv
+│   └── promotions.csv
 │
 ├── src/main/java/com/gamezone/
 │   ├── model/                     # Domain layer
@@ -74,6 +83,10 @@ GameZoneUnicesar/
 │   │   ├── Cable.java
 │   │   ├── Memory.java
 │   │   ├── ConsoleCompatible.java
+│   │   ├── Promotion.java
+│   │   ├── PercentageDiscount.java
+│   │   ├── CategoryDiscount.java
+│   │   ├── BulkPurchaseDiscount.java
 │   │   ├── Sale.java
 │   │   └── SaleDetail.java
 │   │
@@ -81,12 +94,14 @@ GameZoneUnicesar/
 │   │   ├── PersonRepository.java
 │   │   ├── ProductRepository.java
 │   │   ├── AccessoryRepository.java
+│   │   ├── PromotionRepository.java
 │   │   └── SaleRepository.java
 │   │
 │   ├── service/                    # Business logic layer
 │   │   ├── PersonService.java
 │   │   ├── ProductService.java
 │   │   ├── AccessoryService.java
+│   │   ├── PromotionService.java
 │   │   └── SaleService.java
 │   │
 │   ├── ui/                         # Presentation layer
@@ -96,7 +111,9 @@ GameZoneUnicesar/
 │
 ├── docs/                           # Analysis and design documentation
 │   ├── accessory-analysis.md
-│   └── accessory-class-diagram.md
+│   ├── accessory-class-diagram.md
+│   ├── promotion-analysis.md
+│   └── promotion-class-diagram.md
 ├── TEAM.md
 └── README.md
 ```
@@ -142,6 +159,8 @@ TYPE,ID,TITLE,PRICE,STOCK,EXTRA_PARAM_1,EXTRA_PARAM_2,EXTRA_PARAM_3
 **sellers.csv** — stores seller information (name, identification, phone, employee code, shift).
 
 **sales.csv / sale_details.csv** — store sales transactions, linking the sale header with its line-item details. A line item can reference either a `Product` or an `Accessory`, since both extend the same base class.
+
+**promotions.csv** — stores promotion information (percentage, category, and bulk purchase discounts), including a type discriminator and each type's specific attributes, plus the validity period (start and end date). Preloaded with at least one promotion of each type.
 
 ## 👨‍💻 Technologies Used
 
