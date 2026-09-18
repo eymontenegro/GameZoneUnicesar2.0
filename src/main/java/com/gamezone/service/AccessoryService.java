@@ -155,6 +155,20 @@ public class AccessoryService {
         throw new IllegalArgumentException("Unknown accessory id: " + id);
     }
 
+    public void restoreStock(String accessoryId, int quantity) {
+        if (quantity < 0) {
+            throw new IllegalArgumentException("La cantidad a restaurar no puede ser negativa");
+        }
+        for (Accessory accessory : accessories) {
+            if (accessory.getId().equals(accessoryId)) {
+                accessory.increaseStock(quantity);
+                repository.saveAll(accessories);
+                return;
+            }
+        }
+        throw new IllegalArgumentException("No existe un accesorio con el id: " + accessoryId);
+    }
+    
     /**
      * Reduces the stock of a specific accessory, identified by its id,
      * and saves the updated inventory to the file.

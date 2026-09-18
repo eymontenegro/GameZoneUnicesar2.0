@@ -141,6 +141,14 @@ public class SaleService {
         return sale;
     }
 
+    public void restoreStock(Product product, int quantity) {
+        if (product instanceof Accessory) {
+            accessoryService.restoreStock(product.getId(), quantity);
+        } else {
+            productService.restoreStock(product.getId(), quantity);
+        }
+    }
+    
     /**
      * Returns the full list of registered sales.
      *

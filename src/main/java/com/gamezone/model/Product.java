@@ -52,5 +52,20 @@ public abstract class Product {
        }
        stock = stock - quantity;
    }
+
+   /**
+     * Increases the available stock by the given quantity. Used when a
+     * previously sold product is returned and becomes available for
+     * sale again.
+     *
+     * @param quantity the number of units to add to stock
+     * @throws IllegalArgumentException if quantity is negative
+     */
+   public void increaseStock (int quantity ){
+       if(quantity < 0){
+           throw new IllegalArgumentException(" La cantidad a restaurar no puede ser negativa ");
+       }
+       stock = stock + quantity;
+   }
      
 }

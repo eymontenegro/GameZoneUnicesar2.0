@@ -109,8 +109,8 @@ public class ReturnService {
         Return newReturn = new Return(returnId, LocalDate.now(), sale, returnedProducts, reason, 0.0);
         newReturn.calculateRefundAmount();
 
-        for (String productId : productIds) {
-            productService.restoreStock(productId, 1);
+        for (Product product : returnedProducts) {   
+            saleService.restoreStock(product, 1);     
         }
 
         returns.add(newReturn);
