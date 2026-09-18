@@ -152,3 +152,5 @@ public class WarrantyRepository {
         return warranties;
     }
 }
+
+// Warranty persistence implemented with CSV
