@@ -6,7 +6,7 @@ import java.time.LocalDate;
  * Concrete promotion that applies a percentage discount if total items reach or exceed a threshold.
  */
 public class BulkPurchaseDiscount extends Promotion {
-    private int minQuantity;
+    private int minimumQuantity;
     private double percentage;
 
     /**
@@ -16,21 +16,21 @@ public class BulkPurchaseDiscount extends Promotion {
      * @param name the promotion name
      * @param startDate validity start date
      * @param endDate validity end date
-     * @param minQuantity minimum total items required
+     * @param minimumQuantity minimum total items required
      * @param percentage discount percentage
      */
-    public BulkPurchaseDiscount(String id, String name, LocalDate startDate, LocalDate endDate, int minQuantity, double percentage) {
+    public BulkPurchaseDiscount(String id, String name, LocalDate startDate, LocalDate endDate, int minimumQuantity, double percentage) {
         super(id, name, startDate, endDate);
-        this.minQuantity = minQuantity;
+        this.minimumQuantity = minimumQuantity;
         this.percentage = percentage;
     }
 
-    public int getMinQuantity() {
-        return minQuantity;
+    public int getMinimumQuantity() {
+        return minimumQuantity;
     }
 
-    public void setMinQuantity(int minQuantity) {
-        this.minQuantity = minQuantity;
+    public void setMinimumQuantity(int minimumQuantity) {
+        this.minimumQuantity = minimumQuantity;
     }
 
     public double getPercentage() {
@@ -48,7 +48,7 @@ public class BulkPurchaseDiscount extends Promotion {
             totalUnits += detail.getQuantity();
         }
 
-        if (totalUnits >= minQuantity) {
+        if (totalUnits >= minimumQuantity) {
             return sale.calculateTotal() * (percentage / 100.0);
         }
 
