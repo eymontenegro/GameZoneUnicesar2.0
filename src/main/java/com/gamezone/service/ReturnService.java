@@ -150,15 +150,32 @@ public class ReturnService {
     }
 
     /**
-     * Generates the net balance for a given month and year: total sales
-     * minus total returns for that period.
+     * Generates the net balance for a given month and year: the total of
+     * all sales made in that period minus the total of all returns
+     * refunded in that same period. This lets the owner see the real
+     * income for the month, after accounting for refunds.
      *
      * @param month the month to evaluate (1-12)
      * @param year the year to evaluate
      * @return the net balance (sales minus returns) for that period
      */
     public double generateMonthlyBalance(int month, int year) {
-        // TODO: implemented in a follow-up commit
-        return 0.0;
+        double totalSales = 0.0;
+        for (Sale sale : saleService.listAllSales()) {
+            LocalDate date = sale.getDate();
+            if (date.getMonthValue() == month && date.getYear() == year) {
+                totalSales += sale.calculateFinalTotal();
+            }
+        }
+
+        double totalReturns = 0.0;
+        for (Return returnObj : returns) {
+            LocalDate date = returnObj.getDate();
+            if (date.getMonthValue() == month && date.getYear() == year) {
+                totalReturns += returnObj.getRefundAmount();
+            }
+        }
+
+        return totalSales - totalReturns;
     }
 }
