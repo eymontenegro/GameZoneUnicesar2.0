@@ -1,5 +1,6 @@
 package com.gamezone.service;
 
+import com.gamezone.model.Accessory;
 import com.gamezone.model.Client;
 import com.gamezone.model.Product;
 import com.gamezone.model.Sale;
@@ -13,24 +14,30 @@ import java.util.List;
 
 /**
  * Provides business logic for registering and querying sales.
- * Orchestrates stock reduction and maintains sale persistence.
+ * Orchestrates stock reduction (delegating to ProductService or
+ * AccessoryService depending on the item's type) and maintains
+ * sale persistence.
  */
 public class SaleService {
 
     private SaleRepository repository;
     private ProductService productService;
+    private AccessoryService accessoryService;
     private PersonService personService;
     private List<Sale> sales;
 
     /**
-     * Creates a new SaleService using references to existing ProductService and PersonService.
-     * Loads saved sales and links them with existing clients, sellers, and products.
+     * Creates a new SaleService using references to existing ProductService,
+     * AccessoryService, and PersonService. Loads saved sales and links them
+     * with existing clients, sellers, and products.
      *
      * @param productService service handling product inventory
+     * @param accessoryService service handling accessory inventory
      * @param personService service handling clients and sellers
      */
-    public SaleService(ProductService productService, PersonService personService) {
+    public SaleService(ProductService productService, AccessoryService accessoryService, PersonService personService) {
         this.productService = productService;
+        this.accessoryService = accessoryService;
         this.personService = personService;
         this.repository = new SaleRepository();
         this.sales = repository.loadSales(
@@ -41,19 +48,21 @@ public class SaleService {
     }
 
      /**
-     * Registers a new sale transaction, validates stock, reduces product stock,
-     * confirms the sale, and saves updated sales data.
+     * Registers a new sale transaction, validates stock, reduces stock for
+     * every item (products and accessories), confirms the sale, and saves
+     * updated sales data.
      *
      * @param clientIdentification identification of the client making the purchase
      * @param sellerEmployeeCode code of the seller processing the transaction
-     * @param details list of sale details containing products and quantities
+     * @param details list of sale details containing products, accessories, and quantities
      * @return the newly registered Sale object
      */
     public Sale registerSale(String clientIdentification, String sellerEmployeeCode, List<SaleDetail> details) {
         Client client = findClient(clientIdentification);
         Seller seller = findSeller(sellerEmployeeCode);
 
-        // Validate stock availability before processing
+        // Validate stock availability before processing (works for both
+        // products and accessories, since Accessory extends Product)
         for (SaleDetail detail : details) {
             if (detail.getProduct().getStock() < detail.getQuantity()) {
                 throw new IllegalArgumentException("Stock insuficiente para el producto: " 
@@ -66,9 +75,15 @@ public class SaleService {
         // Confirm sale (validates non-empty details list and updates client history)
         sale.confirm();
 
-        // Service layer orchestrates stock reduction
+        // Service layer orchestrates stock reduction, delegating to the
+        // service that owns each item's inventory
         for (SaleDetail detail : details) {
-            productService.updateStock(detail.getProduct().getId(), detail.getQuantity());
+            Product item = detail.getProduct();
+            if (item instanceof Accessory) {
+                accessoryService.updateStock(item.getId(), detail.getQuantity());
+            } else {
+                productService.updateStock(item.getId(), detail.getQuantity());
+            }
         }
 
         sales.add(sale);
