@@ -130,13 +130,25 @@ public class PromotionService {
 
     /**
      * Among the active promotions, finds the one that would grant the
-     * highest monetary discount to the given sale.
+     * highest monetary discount to the given sale. Only one promotion
+     * is ever applied to a sale (promotions are not cumulative).
      *
      * @param sale the sale to evaluate
      * @return the best applicable promotion, or null if none applies
+     *         or the maximum discount is zero
      */
     public Promotion findBestPromotionFor(Sale sale) {
-        // TODO: implemented in a follow-up commit
-        return null;
+        Promotion bestPromotion = null;
+        double bestDiscount = 0.0;
+
+        for (Promotion promotion : listActivePromotions()) {
+            double discount = promotion.calculateDiscount(sale);
+            if (discount > bestDiscount) {
+                bestDiscount = discount;
+                bestPromotion = promotion;
+            }
+        }
+
+        return bestPromotion;
     }
 }
