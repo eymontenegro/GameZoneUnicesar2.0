@@ -114,8 +114,7 @@ public class ReturnService {
      * @return the list of all returns
      */
     public List<Return> viewAllReturns() {
-        // TODO: implemented in a follow-up commit
-        return null;
+        return returns;
     }
 
     /**
@@ -125,8 +124,13 @@ public class ReturnService {
      * @return the list of returns made by that customer
      */
     public List<Return> viewReturnsByCustomer(String customerId) {
-        // TODO: implemented in a follow-up commit
-        return null;
+        List<Return> customerReturns = new ArrayList<>();
+        for (Return returnObj : returns) {
+            if (returnObj.getOriginalSale().getClient().getId().equals(customerId)) {
+                customerReturns.add(returnObj);
+            }
+        }
+        return customerReturns;
     }
 
     /**
@@ -136,8 +140,13 @@ public class ReturnService {
      * @return the list of returns for that sale
      */
     public List<Return> viewReturnsBySale(String saleId) {
-        // TODO: implemented in a follow-up commit
-        return null;
+        List<Return> saleReturns = new ArrayList<>();
+        for (Return returnObj : returns) {
+            if (returnObj.getOriginalSale().getId().equals(saleId)) {
+                saleReturns.add(returnObj);
+            }
+        }
+        return saleReturns;
     }
 
     /**
