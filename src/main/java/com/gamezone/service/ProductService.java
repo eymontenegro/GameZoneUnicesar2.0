@@ -90,4 +90,28 @@ public void updateStock(String productId, int quantity) {
          } 
         throw new IllegalArgumentException("Unknown product id : " + productId);
     }
+
+/**
+     * Restores (increases) the stock of a specific product, identified by
+     * its id, and saves the updated inventory to the file. Used when a
+     * returned product becomes available for sale again.
+     *
+     * @param productId the id of the product to update
+     * @param quantity the quantity to add back to the product's stock
+     * @throws IllegalArgumentException if no product with that id exists,
+     *                                  or if the quantity is negative
+     */
+public void restoreStock(String productId, int quantity) {
+    if (quantity < 0) {
+        throw new IllegalArgumentException("Quantity cannot be negative");
+    }
+    for (Product product : products) {
+        if (product.getId().equals(productId)) {
+            product.increaseStock(quantity);
+            repository.save(products);
+            return;
+        }
+    }
+    throw new IllegalArgumentException("Unknown product id: " + productId);
+}
 }
