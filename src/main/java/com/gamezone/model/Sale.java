@@ -7,7 +7,8 @@ import java.util.Objects;
 
 /**
  * Represents a sale transaction in the GameZone store.
- * Aggregates client, seller, items (SaleDetail), applied promotion, and date.
+ * Aggregates client, seller, items (SaleDetail), applied promotion, date,
+ * and any additional costs not tied to a product line item (e.g. extended warranties).
  */
 public class Sale {
 
@@ -17,6 +18,7 @@ public class Sale {
     private Seller seller;
     private List<SaleDetail> details;
     private Promotion promotion;
+    private double additionalCosts;
 
     /**
      * Constructs a new Sale with the specified ID, client, seller, and date.
@@ -33,6 +35,7 @@ public class Sale {
         this.date = (date != null) ? date : LocalDate.now();
         this.details = new ArrayList<>();
         this.promotion = null;
+        this.additionalCosts = 0.0;
     }
 
     public String getId() {
@@ -91,6 +94,30 @@ public class Sale {
     }
 
     /**
+     * Adds an additional cost to the sale that is not tied to a product line
+     * item, such as the extra cost of an extended warranty. This cost is
+     * added to the final total after the promotional discount is applied,
+     * since it is not part of the discountable product subtotal.
+     *
+     * @param amount the additional cost to add; ignored if negative
+     */
+    public void addExtraCost(double amount) {
+        if (amount > 0) {
+            this.additionalCosts += amount;
+        }
+    }
+
+    /**
+     * Returns the accumulated additional costs (e.g. extended warranties)
+     * applied to this sale.
+     *
+     * @return the total additional costs
+     */
+    public double getAdditionalCosts() {
+        return additionalCosts;
+    }
+
+    /**
      * Calculates the gross total (subtotal) of the sale before applying any discount.
      *
      * @return subtotal amount of all item details
@@ -116,15 +143,19 @@ public class Sale {
     }
 
     /**
-     * Calculates the final net total after subtracting the discount from the gross total.
+     * Calculates the final net total: the discounted product subtotal plus
+     * any additional costs (e.g. extended warranties), which are not subject
+     * to promotional discounts.
      *
      * @return final total amount
      */
     public double calculateFinalTotal() {
         double grossTotal = calculateTotal();
         double discount = calculateDiscount();
-        return Math.max(0.0, grossTotal - discount);
+        double netProductTotal = Math.max(0.0, grossTotal - discount);
+        return netProductTotal + additionalCosts;
     }
+
     /**
      * Checks if the sale is eligible for a return within 30 calendar days.
      *
