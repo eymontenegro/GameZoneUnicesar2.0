@@ -1,9 +1,13 @@
 package com.gamezone.persistence;
 
+import com.gamezone.model.Product;
 import com.gamezone.model.Return;
 import com.gamezone.service.ProductService;
 import com.gamezone.service.SaleService;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -33,13 +37,47 @@ public class ReturnRepository {
     }
 
     /**
+     * Converts a single Return into one CSV-formatted line. The returned
+     * products are stored as a semicolon-separated list of product ids.
+     *
+     * @param returnObj the return to convert
+     * @return a comma-separated line representing the return
+     */
+    private String returnToCsvLine(Return returnObj) {
+        StringBuilder productIdsBuilder = new StringBuilder();
+        List<Product> returnedProducts = returnObj.getReturnedProducts();
+
+        for (int i = 0; i < returnedProducts.size(); i++) {
+            productIdsBuilder.append(returnedProducts.get(i).getId());
+            if (i < returnedProducts.size() - 1) {
+                productIdsBuilder.append(";");
+            }
+        }
+
+        return returnObj.getId() + ","
+                + returnObj.getOriginalSale().getId() + ","
+                + returnObj.getDate() + ","
+                + returnObj.getReason() + ","
+                + returnObj.getRefundAmount() + ","
+                + productIdsBuilder;
+    }
+
+    /**
      * Saves the full list of returns to the CSV file, overwriting
      * any previous content.
      *
      * @param returns the list of returns to persist
+     * @throws RuntimeException if an I/O error occurs while writing
      */
     public void saveAll(List<Return> returns) {
-        // TODO: implemented in a follow-up commit
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_PATH))) {
+            for (Return returnObj : returns) {
+                writer.write(returnToCsvLine(returnObj));
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Error saving returns: " + e.getMessage(), e);
+        }
     }
 
     /**
