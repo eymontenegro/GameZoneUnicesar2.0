@@ -2,21 +2,22 @@ package com.gamezone.service;
 
 import com.gamezone.model.Accessory;
 import com.gamezone.model.Client;
+import com.gamezone.model.Console;
 import com.gamezone.model.Product;
 import com.gamezone.model.Promotion;
 import com.gamezone.model.Sale;
 import com.gamezone.model.SaleDetail;
 import com.gamezone.model.Seller;
+import com.gamezone.model.Warranty;
 import com.gamezone.persistence.SaleRepository;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Applies the business rules for processing transactions/sales in GameZone.
  * Coordinates stock reduction, promotional discount calculation, client purchase history updates,
- * and persistence using SaleRepository.
+ * automatic and optional warranty assignment, and persistence using SaleRepository.
  */
 public class SaleService {
 
@@ -26,27 +27,31 @@ public class SaleService {
     private ProductService productService;
     private AccessoryService accessoryService;
     private PromotionService promotionService;
+    private WarrantyService warrantyService;
 
     /**
      * Constructs SaleService injecting all required service dependencies and the repository.
      * Loads existing sales from CSV matching references across services.
-     * 
+     *
      * @param saleRepository the repository for managing sale persistence
      * @param personService service for managing clients and sellers
      * @param productService service for managing consoles and video games
      * @param accessoryService service for managing store accessories
      * @param promotionService service for managing active promotions
+     * @param warrantyService service for assigning and querying warranties
      */
     public SaleService(SaleRepository saleRepository,
                        PersonService personService,
                        ProductService productService,
                        AccessoryService accessoryService,
-                       PromotionService promotionService) {
+                       PromotionService promotionService,
+                       WarrantyService warrantyService) {
         this.saleRepository = saleRepository;
         this.personService = personService;
         this.productService = productService;
         this.accessoryService = accessoryService;
         this.promotionService = promotionService;
+        this.warrantyService = warrantyService;
 
         // Load sales linking entities from respective services
         this.sales = saleRepository.loadAll(
@@ -84,15 +89,20 @@ public class SaleService {
     /**
      * Processes and records a new sale.
      * Evaluates stock availability, calculates subtotal, applies the best valid promotion,
-     * reduces inventory stock, updates the client purchase history, and persists the sale.
+     * reduces inventory stock, assigns automatic basic warranties to consoles, assigns
+     * optional extended warranties requested by the seller, updates the client purchase
+     * history, and persists the sale.
      *
      * @param saleId ID of the new sale
      * @param clientId ID of the client purchasing
      * @param sellerId ID of the seller executing the transaction
      * @param items list of SaleDetail items to include in the sale
+     * @param productIdsWithExtendedWarranty ids of the products in this sale that should
+     *        receive an extended warranty; may be null or empty if none was requested
      * @return the fully processed Sale object
      */
-    public Sale processSale(String saleId, String clientId, String sellerId, List<SaleDetail> items) {
+    public Sale processSale(String saleId, String clientId, String sellerId, List<SaleDetail> items,
+                             List<String> productIdsWithExtendedWarranty) {
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("The sale must contain at least one product.");
         }
@@ -131,10 +141,26 @@ public class SaleService {
             }
         }
 
-        // 5. Register sale in client's purchase history
+        // 5. Assign warranties: automatic basic warranty for every console,
+        // plus an optional extended warranty for the products the seller selected.
+        for (SaleDetail detail : items) {
+            Product product = detail.getProduct();
+
+            if (product instanceof Console) {
+                warrantyService.assignBasicWarranty(product, sale, sale.getDate());
+            }
+
+            if (productIdsWithExtendedWarranty != null
+                    && productIdsWithExtendedWarranty.contains(product.getId())) {
+                Warranty extendedWarranty = warrantyService.assignExtendedWarranty(product, sale, sale.getDate());
+                sale.addExtraCost(extendedWarranty.getAdditionalCost());
+            }
+        }
+
+        // 6. Register sale in client's purchase history
         personService.registerPurchase(clientId, saleId);
 
-        // 6. Save sale in memory and into the CSV file
+        // 7. Save sale in memory and into the CSV file
         sales.add(sale);
         saleRepository.saveAll(sales);
 
@@ -148,7 +174,7 @@ public class SaleService {
             productService.restoreStock(product.getId(), quantity);
         }
     }
-    
+
     /**
      * Returns the full list of registered sales.
      *

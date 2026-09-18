@@ -164,7 +164,7 @@ public class WarrantyRepository {
         List<Client> clients = personRepository.loadClients();
         List<Seller> sellers = personRepository.loadSellers();
         List<Product> products = productRepository.load();
-        List<Accessory> accessories = accessoryRepository.load();
+        List<Accessory> accessories = accessoryRepository.loadAll();
         List<Promotion> promotions = promotionRepository.loadAll();
 
         List<Sale> sales = saleRepository.loadAll(clients, sellers, products, accessories, promotions);

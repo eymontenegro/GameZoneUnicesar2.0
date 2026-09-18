@@ -1,6 +1,6 @@
 # GameZoneUnicesar 🎮
 
-GameZoneUnicesar is a management system that allows a video game store to register and list its products, keep track of its clients and employees, register sales transactions, apply promotional discounts automatically, and process product returns.
+GameZoneUnicesar is a management system that allows a video game store to register and list its products, keep track of its clients and employees, register sales transactions, apply promotional discounts automatically, process product returns, and manage product warranties (basic and extended).
 
 ## 📋 Table of Contents
 
@@ -52,17 +52,25 @@ The system is divided into six core modules:
 - Query of all returns, returns by customer, and returns by sale.
 - Monthly balance report showing total sales, total returns, and the net balance for a given month and year.
 
+**Warranty Module (Warranty):**
+- Management of two warranty types: Basic Warranty (`BasicWarranty`) and Extended Warranty (`ExtendedWarranty`).
+- Basic warranty covers factory defects only, lasts 6 months from the sale date, and is generated automatically at no extra cost whenever a `Console` is sold (video games do not receive a warranty).
+- Extended warranty covers factory defects and accidental damage, lasts 12 months from the sale date, and can be optionally requested by the seller at the time of sale for an additional cost of 10% of the product's price, which is added to the sale total.
+- Each warranty has a start date (the sale date) and an automatically calculated end date, based on its duration.
+- Query of the warranty associated with a specific product within a specific sale, listing of all currently active warranties, and listing of warranties expiring soon (e.g., within the next 30 days).
+- Integration with the Sales module: registering a sale automatically generates the basic warranties for the consoles included, and adds the additional cost of any requested extended warranties to the sale total.
+
 ## 🏗️ System Architecture
 
 The project implements an Object-Oriented 4-Layer Architecture:
 
-**Layer 1: Domain/Model** — Contains the core entities and their inheritance relationships (`Product` → `VideoGame`/`Console`/`Accessory`, `Accessory` → `Controller`/`Cable`/`Memory`, `Person` → `Client`/`Seller`, `Promotion` → `PercentageDiscount`/`CategoryDiscount`/`BulkPurchaseDiscount`). Compatibility with consoles is modeled through the `ConsoleCompatible` interface, implemented by `Controller` and `Memory`. `Return` references an existing `Sale` and its returned products.
+**Layer 1: Domain/Model** — Contains the core entities and their inheritance relationships (`Product` → `VideoGame`/`Console`/`Accessory`, `Accessory` → `Controller`/`Cable`/`Memory`, `Person` → `Client`/`Seller`, `Promotion` → `PercentageDiscount`/`CategoryDiscount`/`BulkPurchaseDiscount`, `Warranty` → `BasicWarranty`/`ExtendedWarranty`). Compatibility with consoles is modeled through the `ConsoleCompatible` interface, implemented by `Controller` and `Memory`. `Return` references an existing `Sale` and its returned products. Each `Warranty` references its associated `Product` and `Sale`, and delegates its duration, type name, and additional cost to its concrete subclass.
 
-**Layer 2: Persistence** — Repositories handling reading and writing to CSV files, including `AccessoryRepository` for the accessory module, `PromotionRepository` for the promotion module, and `ReturnRepository` for the return module.
+**Layer 2: Persistence** — Repositories handling reading and writing to CSV files, including `AccessoryRepository` for the accessory module, `PromotionRepository` for the promotion module, `ReturnRepository` for the return module, and `WarrantyRepository` for the warranty module (persists to `data/warranties.csv` using a type discriminator to distinguish `BasicWarranty` from `ExtendedWarranty` when loading).
 
-**Layer 3: Service** — Business logic layer, processing rule validations and coordinating between modules (e.g., stock reduction during a sale, delegated to `ProductService` or `AccessoryService` depending on the item type sold; best-promotion selection delegated to `PromotionService`; return validation, stock restoration via `ProductService.restoreStock`, and the monthly balance report delegated to `ReturnService`).
+**Layer 3: Service** — Business logic layer, processing rule validations and coordinating between modules (e.g., stock reduction during a sale, delegated to `ProductService` or `AccessoryService` depending on the item type sold; best-promotion selection delegated to `PromotionService`; return validation, stock restoration via `ProductService.restoreStock`, and the monthly balance report delegated to `ReturnService`; warranty assignment, activity checks, and expiring-soon queries delegated to `WarrantyService`). `SaleService.registerSale` was extended, additively, to generate a `BasicWarranty` for each `Console` sold via `instanceof`, and to optionally assign an `ExtendedWarranty` (adding its cost to the sale total) for the products indicated in a new `List<String> productIdsWithExtendedWarranty` parameter.
 
-**Layer 4: UI** — Console-based menu for user interaction, including the "Accessory Management", "Promotion Management", and "Return Management" submenus, plus a monthly balance query option.
+**Layer 4: UI** — Console-based menu for user interaction, including the "Accessory Management", "Promotion Management", "Return Management", and "Warranty Management" submenus, plus a monthly balance query option. The sales submenu now asks the user whether to add extended warranty to each console included in a new sale.
 
 ## 📁 Project Structure
 
@@ -77,7 +85,8 @@ GameZoneUnicesar/
 │   ├── sales.csv
 │   ├── sale_details.csv
 │   ├── promotions.csv
-│   └── returns.csv
+│   ├── returns.csv
+│   └── warranties.csv
 │
 ├── src/main/java/com/gamezone/
 │   ├── model/                     # Domain layer
@@ -98,7 +107,10 @@ GameZoneUnicesar/
 │   │   ├── BulkPurchaseDiscount.java
 │   │   ├── Sale.java
 │   │   ├── SaleDetail.java
-│   │   └── Return.java
+│   │   ├── Return.java
+│   │   ├── Warranty.java
+│   │   ├── BasicWarranty.java
+│   │   └── ExtendedWarranty.java
 │   │
 │   ├── persistence/                # Persistence layer
 │   │   ├── PersonRepository.java
@@ -106,7 +118,8 @@ GameZoneUnicesar/
 │   │   ├── AccessoryRepository.java
 │   │   ├── PromotionRepository.java
 │   │   ├── SaleRepository.java
-│   │   └── ReturnRepository.java
+│   │   ├── ReturnRepository.java
+│   │   └── WarrantyRepository.java
 │   │
 │   ├── service/                    # Business logic layer
 │   │   ├── PersonService.java
@@ -114,7 +127,8 @@ GameZoneUnicesar/
 │   │   ├── AccessoryService.java
 │   │   ├── PromotionService.java
 │   │   ├── SaleService.java
-│   │   └── ReturnService.java
+│   │   ├── ReturnService.java
+│   │   └── WarrantyService.java
 │   │
 │   ├── ui/                         # Presentation layer
 │   │   └── (menu classes)
@@ -127,7 +141,9 @@ GameZoneUnicesar/
 │   ├── promotion-analysis.md
 │   ├── promotion-class-diagram.md
 │   ├── return-analysis.md
-│   └── return-class-diagram.md
+│   ├── return-class-diagram.md
+│   ├── warranty-analysis.md
+│   └── warranty-class-diagram.md
 ├── TEAM.md
 └── README.md
 ```
@@ -177,6 +193,8 @@ TYPE,ID,TITLE,PRICE,STOCK,EXTRA_PARAM_1,EXTRA_PARAM_2,EXTRA_PARAM_3
 **promotions.csv** — stores promotion information (percentage, category, and bulk purchase discounts), including a type discriminator and each type's specific attributes, plus the validity period (start and end date). Preloaded with at least one promotion of each type.
 
 **returns.csv** — stores return information: the return id, date, the referenced sale id, the returned product ids, the reason, and the refunded amount. No preloaded data is required, since returns are generated from existing sales during application use.
+
+**warranties.csv** — stores warranty information: a type discriminator (`BasicWarranty` or `ExtendedWarranty`), the warranty id, the referenced product id, the referenced sale id, the start date, and the end date. No preloaded data is required, since warranties are generated automatically from console sales during application use.
 
 ## 👨‍💻 Technologies Used
 
