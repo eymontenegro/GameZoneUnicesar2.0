@@ -1,160 +1,168 @@
 package com.gamezone.persistence;
 
+import com.gamezone.model.Accessory;
 import com.gamezone.model.Client;
 import com.gamezone.model.Product;
+import com.gamezone.model.Promotion;
 import com.gamezone.model.Sale;
 import com.gamezone.model.SaleDetail;
 import com.gamezone.model.Seller;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Handles the persistence of Sale data using CSV files.
- * This class is responsible for saving and loading sales and their details
- * to and from the file system.
+ * Handles saving and loading Sale objects to and from a CSV file.
+ * Integrates references to Client, Seller, Product/Accessory, and Promotion entities.
  */
 public class SaleRepository {
 
-    private static final String SALES_FILE = "data/sales.csv";
-    private static final String SALE_DETAILS_FILE = "data/sale_details.csv";
+    private static final String FILE_PATH = "data/sales.csv";
 
-     /**
-     * Saves the given list of sales and their associated details to CSV files.
-     *
-     * @param sales the list of sales to save
+    /**
+     * Converts a Sale object to a single CSV line format:
+     * id,clientId,sellerId,date,promotionId,productId1:quantity1:unitPrice1;productId2:quantity2...
+     * 
+     * @param sale the sale to convert
+     * @return the formatted CSV line string
      */
-    public void saveSales(List<Sale> sales) {
-        try (FileWriter saleWriter = new FileWriter(SALES_FILE);
-             FileWriter detailWriter = new FileWriter(SALE_DETAILS_FILE)) {
+    private String saleToCsvLine(Sale sale) {
+        String promoId = (sale.getPromotion() != null) ? sale.getPromotion().getId() : "NONE";
+        StringBuilder detailsBuilder = new StringBuilder();
 
-            int saleId = 1;
+        List<SaleDetail> details = sale.getDetails();
+        for (int i = 0; i < details.size(); i++) {
+            SaleDetail detail = details.get(i);
+            detailsBuilder.append(detail.getProduct().getId())
+                    .append(":")
+                    .append(detail.getQuantity())
+                    .append(":")
+                    .append(detail.getUnitPrice());
+            if (i < details.size() - 1) {
+                detailsBuilder.append(";");
+            }
+        }
+
+        return sale.getId() + ","
+                + sale.getClient().getId() + ","
+                + sale.getSeller().getId() + ","
+                + sale.getDate() + ","
+                + promoId + ","
+                + detailsBuilder.toString();
+    }
+
+    /**
+     * Saves the list of sales to the CSV file.
+     *
+     * @param sales list of sales to persist
+     * @throws RuntimeException if an I/O error occurs during saving
+     */
+    public void saveAll(List<Sale> sales) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_PATH))) {
             for (Sale sale : sales) {
-                // Save main sale info: saleId, date, clientIdentification, sellerEmployeeCode
-                saleWriter.write(saleId + ","
-                        + sale.getDate() + ","
-                        + sale.getClient().getId() + ","
-                        + sale.getSeller().getEmployeeCode() + "\n");
-
-                // Save each detail linked to this saleId: saleId, productId, quantity, unitPrice
-                for (SaleDetail detail : sale.getDetails()) {
-                    detailWriter.write(saleId + ","
-                            + detail.getProduct().getId() + ","
-                            + detail.getQuantity() + ","
-                            + detail.getUnitPrice() + "\n");
-                }
-                saleId++;
+                writer.write(saleToCsvLine(sale));
+                writer.newLine();
             }
         } catch (IOException e) {
-            System.out.println("Error al guardar las ventas: " + e.getMessage());
+            throw new RuntimeException("Error saving sales: " + e.getMessage(), e);
         }
     }
 
     /**
-     * Loads the list of sales from the CSV files, reconstructing relations
-     * using the provided lists of clients, sellers, and products.
+     * Loads all sales from the CSV file using existing repositories to resolve dependencies.
      *
-     * @param clients list of available clients
-     * @param sellers list of available sellers
-     * @param products list of available products
-     * @return the list of sales loaded from the file
+     * @param clients list of registered clients
+     * @param sellers list of registered sellers
+     * @param products list of registered products (consoles and video games)
+     * @param accessories list of registered accessories
+     * @param promotions list of registered promotions
+     * @return list of reconstructed Sale objects
+     * @throws RuntimeException if an I/O error occurs during loading
      */
-    public List<Sale> loadSales(List<Client> clients, List<Seller> sellers, List<Product> products) {
-        List<Sale> sales = new ArrayList<>();
-        List<String[]> detailsData = loadDetailsData();
+    public List<Sale> loadAll(List<Client> clients,
+                              List<Seller> sellers,
+                              List<Product> products,
+                              List<Accessory> accessories,
+                              List<Promotion> promotions) {
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(SALES_FILE))) {
+        List<Sale> sales = new ArrayList<>();
+        File file = new File(FILE_PATH);
+
+        if (!file.exists()) {
+            return sales;
+        }
+
+        // Quick lookup maps
+        Map<String, Client> clientMap = new HashMap<>();
+        for (Client c : clients) clientMap.put(c.getId(), c);
+
+        Map<String, Seller> sellerMap = new HashMap<>();
+        for (Seller s : sellers) sellerMap.put(s.getId(), s);
+
+        Map<String, Product> productMap = new HashMap<>();
+        for (Product p : products) productMap.put(p.getId(), p);
+        for (Accessory a : accessories) productMap.put(a.getId(), a);
+
+        Map<String, Promotion> promoMap = new HashMap<>();
+        for (Promotion pr : promotions) promoMap.put(pr.getId(), pr);
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts.length == 4) {
-                    int saleId = Integer.parseInt(parts[0]);
-                    LocalDate date = LocalDate.parse(parts[1]);
-                    String clientDoc = parts[2];
-                    String sellerCode = parts[3];
+                if (line.trim().isEmpty()) continue;
 
-                    Client client = findClientByIdentification(clients, clientDoc);
-                    Seller seller = findSellerByCode(sellers, sellerCode);
+                String[] parts = line.split(",", -1);
+                if (parts.length < 6) continue;
 
-                    if (client != null && seller != null) {
-                        List<SaleDetail> details = extractDetailsForSale(saleId, detailsData, products);
-                        if (!details.isEmpty()) {
-                            Sale sale = new Sale(date, client, seller, details);
-                            client.addPurchase(sale.getId()); // Reconstructs the client history without re-invoking confirm()
-                            sales.add(sale);
+                String saleId = parts[0];
+                String clientId = parts[1];
+                String sellerId = parts[2];
+                LocalDate date = LocalDate.parse(parts[3]);
+                String promoId = parts[4];
+                String detailsStr = parts[5];
+
+                Client client = clientMap.get(clientId);
+                Seller seller = sellerMap.get(sellerId);
+
+                if (client != null && seller != null) {
+                    Sale sale = new Sale(saleId, client, seller, date);
+
+                    if (!"NONE".equalsIgnoreCase(promoId) && promoMap.containsKey(promoId)) {
+                        sale.setPromotion(promoMap.get(promoId));
+                    }
+
+                    if (!detailsStr.isEmpty()) {
+                        String[] detailItems = detailsStr.split(";");
+                        for (String item : detailItems) {
+                            String[] itemParts = item.split(":");
+                            if (itemParts.length == 3) {
+                                String prodId = itemParts[0];
+                                int quantity = Integer.parseInt(itemParts[1]);
+                                double unitPrice = Double.parseDouble(itemParts[2]);
+
+                                Product product = productMap.get(prodId);
+                                if (product != null) {
+                                    sale.addDetail(new SaleDetail(product, quantity, unitPrice));
+                                }
+                            }
                         }
                     }
+                    sales.add(sale);
                 }
             }
         } catch (IOException e) {
-            System.out.println("No se encontraron datos de ventas anteriores. Iniciando vacío.");
+            throw new RuntimeException("Error loading sales: " + e.getMessage(), e);
         }
+
         return sales;
-    }
-
-    private List<String[]> loadDetailsData() {
-        List<String[]> detailsData = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(SALE_DETAILS_FILE))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts.length == 4) {
-                    detailsData.add(parts);
-                }
-            }
-        } catch (IOException e) {
-            System.out.println("No se encontraron datos de detalles de ventas anteriores.");
-        }
-        return detailsData;
-    }
-
-    private List<SaleDetail> extractDetailsForSale(int targetSaleId, List<String[]> detailsData, List<Product> products) {
-        List<SaleDetail> details = new ArrayList<>();
-        for (String[] parts : detailsData) {
-            int saleId = Integer.parseInt(parts[0]);
-            if (saleId == targetSaleId) {
-                String productId = parts[1];
-                int quantity = Integer.parseInt(parts[2]);
-                double unitPrice = Double.parseDouble(parts[3]);
-
-                Product product = findProductById(products, productId);
-                if (product != null) {
-                    details.add(new SaleDetail(product, quantity, unitPrice));
-                }
-            }
-        }
-        return details;
-    }
-
-    private Client findClientByIdentification(List<Client> clients, String id) {
-        for (Client c : clients) {
-            if (c.getId().equals(id)) {
-                return c;
-            }
-        }
-        return null;
-    }
-
-    private Seller findSellerByCode(List<Seller> sellers, String code) {
-        for (Seller s : sellers) {
-            if (s.getEmployeeCode().equals(code)) {
-                return s;
-            }
-        }
-        return null;
-    }
-
-    private Product findProductById(List<Product> products, String id) {
-        for (Product p : products) {
-            if (p.getId().equals(id)) {
-                return p;
-            }
-        }
-        return null;
     }
 }
