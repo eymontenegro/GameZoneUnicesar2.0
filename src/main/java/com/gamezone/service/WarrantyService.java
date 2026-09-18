@@ -22,23 +22,17 @@ public class WarrantyService {
 
     private List<Warranty> warranties;
     private WarrantyRepository repository;
-    private SaleService saleService;
-    private ProductService productService;
 
     /**
-     * Creates the service injecting the repository and the services
-     * needed to resolve sale and product references while loading
-     * previously saved warranties from the file.
+     * Creates the service injecting the repository, loading previously
+     * saved warranties from the file. Resolving Sale and Product
+     * references during load is the repository's responsibility.
      *
-     * @param repository the repository used to persist warranties
-     * @param saleService the service used to resolve sale references on load
-     * @param productService the service used to resolve product references on load
+     * @param repository the repository used to persist and load warranties
      */
-    public WarrantyService(WarrantyRepository repository, SaleService saleService, ProductService productService) {
+    public WarrantyService(WarrantyRepository repository) {
         this.repository = repository;
-        this.saleService = saleService;
-        this.productService = productService;
-        this.warranties = repository.loadAll(saleService.listAllSales(), productService.listAll());
+        this.warranties = repository.loadAll();
     }
 
     /**
@@ -119,13 +113,22 @@ public class WarrantyService {
 
     /**
      * Returns the warranties whose end date falls within the given
-     * number of days from today.
+     * number of days from today (inclusive), and that have not
+     * already expired.
      *
      * @param daysAhead the number of days to look ahead
      * @return the list of warranties expiring within that window
      */
     public List<Warranty> listWarrantiesExpiringSoon(int daysAhead) {
-        // TODO: implemented in a follow-up commit
-        return null;
+        List<Warranty> expiringSoon = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        LocalDate limit = today.plusDays(daysAhead);
+        for (Warranty warranty : warranties) {
+            LocalDate endDate = warranty.getEndDate();
+            if (!endDate.isBefore(today) && !endDate.isAfter(limit)) {
+                expiringSoon.add(warranty);
+            }
+        }
+        return expiringSoon;
     }
 }
