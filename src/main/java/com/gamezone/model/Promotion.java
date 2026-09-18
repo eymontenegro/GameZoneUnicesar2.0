@@ -58,8 +58,7 @@ public abstract class Promotion {
     public void setEndDate(LocalDate endDate) {
         this.endDate = endDate;
     }
-    
-    
+
     /**
      * Checks if the promotion is active on the given date.
      *
@@ -67,9 +66,6 @@ public abstract class Promotion {
      * @return true if date is within range (inclusive), false otherwise
      */
     public boolean isActive(LocalDate date) {
-        if (date == null || startDate == null || endDate == null) {
-            return false;
-        }
         return !date.isBefore(startDate) && !date.isAfter(endDate);
     }
 
@@ -80,5 +76,4 @@ public abstract class Promotion {
      * @return discount amount in monetary terms
      */
     public abstract double calculateDiscount(Sale sale);
-    
 }
