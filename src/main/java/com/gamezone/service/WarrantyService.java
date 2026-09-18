@@ -22,23 +22,17 @@ public class WarrantyService {
 
     private List<Warranty> warranties;
     private WarrantyRepository repository;
-    private SaleService saleService;
-    private ProductService productService;
 
     /**
-     * Creates the service injecting the repository and the services
-     * needed to resolve sale and product references while loading
-     * previously saved warranties from the file.
+     * Creates the service injecting the repository, loading previously
+     * saved warranties from the file. Resolving Sale and Product
+     * references during load is the repository's responsibility.
      *
-     * @param repository the repository used to persist warranties
-     * @param saleService the service used to resolve sale references on load
-     * @param productService the service used to resolve product references on load
+     * @param repository the repository used to persist and load warranties
      */
-    public WarrantyService(WarrantyRepository repository, SaleService saleService, ProductService productService) {
+    public WarrantyService(WarrantyRepository repository) {
         this.repository = repository;
-        this.saleService = saleService;
-        this.productService = productService;
-        this.warranties = repository.loadAll(saleService.listAllSales(), productService.listAll());
+        this.warranties = repository.loadAll();
     }
 
     /**
@@ -93,17 +87,13 @@ public class WarrantyService {
     }
 
     /**
-     * Returns the full list of currently registered warranties.
-     *
-     * @return the list of all warranties
+     * @return the list of all registered warranties
      */
     public List<Warranty> listAllWarranties() {
         return warranties;
     }
 
     /**
-     * Returns the warranties that are active on the current date.
-     *
      * @return the list of currently active warranties
      */
     public List<Warranty> listActiveWarranties() {
