@@ -125,4 +125,13 @@ public class Sale {
         double discount = calculateDiscount();
         return Math.max(0.0, grossTotal - discount);
     }
+    /**
+     * Checks if the sale is eligible for a return within 30 calendar days.
+     *
+     * @return true if the current date is within 30 days of the sale date, false otherwise
+     */
+    public boolean canBeReturned() {
+        LocalDate limitDate = this.date.plusDays(30);
+        return !LocalDate.now().isAfter(limitDate);
+    }
 }
