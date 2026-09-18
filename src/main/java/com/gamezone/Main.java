@@ -45,7 +45,6 @@ public class Main {
         // ReturnRepository only needs SaleService, since SaleService already
         // knows how to resolve both products and accessories by id.
         ReturnRepository returnRepository = new ReturnRepository();
-
         ReturnService returnService = new ReturnService(returnRepository, saleService, productService);
 
 
