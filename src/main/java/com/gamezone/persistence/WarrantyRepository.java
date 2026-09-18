@@ -1,9 +1,13 @@
 package com.gamezone.persistence;
 
+import com.gamezone.model.Accessory;
 import com.gamezone.model.BasicWarranty;
+import com.gamezone.model.Client;
 import com.gamezone.model.ExtendedWarranty;
 import com.gamezone.model.Product;
+import com.gamezone.model.Promotion;
 import com.gamezone.model.Sale;
+import com.gamezone.model.Seller;
 import com.gamezone.model.Warranty;
 
 import java.io.BufferedReader;
@@ -22,12 +26,47 @@ import java.util.Map;
  * Handles saving and loading Warranty objects (BasicWarranty and
  * ExtendedWarranty) to and from a CSV file, so the warranty catalog
  * persists between application runs. Reference resolution (Sale and
- * Product lookups) is done using the lists passed in by the caller,
- * keeping this class free of any dependency on the service layer.
+ * Product lookups) is done using SaleRepository, ProductRepository,
+ * PersonRepository, AccessoryRepository and PromotionRepository, all
+ * injected through the constructor, keeping this class free of any
+ * dependency on the service layer.
  */
 public class WarrantyRepository {
 
     private static final String FILE_PATH = "data/warranties.csv";
+
+    private SaleRepository saleRepository;
+    private ProductRepository productRepository;
+    private PersonRepository personRepository;
+    private AccessoryRepository accessoryRepository;
+    private PromotionRepository promotionRepository;
+
+    /**
+     * Creates the repository injecting the dependencies needed to
+     * resolve Sale and Product references while loading warranties
+     * from the file. SaleRepository.loadAll requires the full set of
+     * clients, sellers, products, accessories and promotions to
+     * reconstruct each Sale, so those repositories are injected here
+     * as well, purely to build the lookup lists it needs. Clients and
+     * sellers are both provided by PersonRepository.
+     *
+     * @param saleRepository the repository used to resolve sale references
+     * @param productRepository the repository used to resolve product references
+     * @param personRepository the repository needed by SaleRepository to resolve clients and sellers
+     * @param accessoryRepository the repository needed by SaleRepository to resolve accessories
+     * @param promotionRepository the repository needed by SaleRepository to resolve promotions
+     */
+    public WarrantyRepository(SaleRepository saleRepository,
+                               ProductRepository productRepository,
+                               PersonRepository personRepository,
+                               AccessoryRepository accessoryRepository,
+                               PromotionRepository promotionRepository) {
+        this.saleRepository = saleRepository;
+        this.productRepository = productRepository;
+        this.personRepository = personRepository;
+        this.accessoryRepository = accessoryRepository;
+        this.promotionRepository = promotionRepository;
+    }
 
     /**
      * Converts a single Warranty into one CSV-formatted line, using a
@@ -107,22 +146,28 @@ public class WarrantyRepository {
 
     /**
      * Loads the full list of warranties from the CSV file, resolving
-     * each warranty's product and sale against the given lists. If the
-     * file does not exist yet (first run), returns an empty list
-     * instead of failing.
+     * each warranty's product and sale through the injected
+     * repositories. If the file does not exist yet (first run),
+     * returns an empty list instead of failing.
      *
-     * @param sales the list of existing sales, used to resolve each warranty's sale
-     * @param products the list of existing products, used to resolve each warranty's product
      * @return the list of warranties loaded from the file
      * @throws RuntimeException if an I/O error occurs while reading
      */
-    public List<Warranty> loadAll(List<Sale> sales, List<Product> products) {
+    public List<Warranty> loadAll() {
         List<Warranty> warranties = new ArrayList<>();
         File file = new File(FILE_PATH);
 
         if (!file.exists()) {
             return warranties;
         }
+
+        List<Client> clients = personRepository.loadClients();
+        List<Seller> sellers = personRepository.loadSellers();
+        List<Product> products = productRepository.load();
+        List<Accessory> accessories = accessoryRepository.load();
+        List<Promotion> promotions = promotionRepository.loadAll();
+
+        List<Sale> sales = saleRepository.loadAll(clients, sellers, products, accessories, promotions);
 
         Map<String, Sale> saleMap = new HashMap<>();
         for (Sale sale : sales) {
@@ -152,5 +197,3 @@ public class WarrantyRepository {
         return warranties;
     }
 }
-
-// Warranty persistence implemented with CSV
