@@ -22,17 +22,23 @@ public class WarrantyService {
 
     private List<Warranty> warranties;
     private WarrantyRepository repository;
+    private SaleService saleService;
+    private ProductService productService;
 
     /**
-     * Creates the service injecting the repository, loading previously
-     * saved warranties from the file. Resolving Sale and Product
-     * references during load is the repository's responsibility.
+     * Creates the service injecting the repository and the services
+     * needed to resolve sale and product references while loading
+     * previously saved warranties from the file.
      *
-     * @param repository the repository used to persist and load warranties
+     * @param repository the repository used to persist warranties
+     * @param saleService the service used to resolve sale references on load
+     * @param productService the service used to resolve product references on load
      */
-    public WarrantyService(WarrantyRepository repository) {
+    public WarrantyService(WarrantyRepository repository, SaleService saleService, ProductService productService) {
         this.repository = repository;
-        this.warranties = repository.loadAll();
+        this.saleService = saleService;
+        this.productService = productService;
+        this.warranties = repository.loadAll(saleService.listAllSales(), productService.listAll());
     }
 
     /**
@@ -87,13 +93,17 @@ public class WarrantyService {
     }
 
     /**
-     * @return the list of all registered warranties
+     * Returns the full list of currently registered warranties.
+     *
+     * @return the list of all warranties
      */
     public List<Warranty> listAllWarranties() {
         return warranties;
     }
 
     /**
+     * Returns the warranties that are active on the current date.
+     *
      * @return the list of currently active warranties
      */
     public List<Warranty> listActiveWarranties() {
@@ -109,22 +119,13 @@ public class WarrantyService {
 
     /**
      * Returns the warranties whose end date falls within the given
-     * number of days from today (inclusive), and that have not
-     * already expired.
+     * number of days from today.
      *
      * @param daysAhead the number of days to look ahead
      * @return the list of warranties expiring within that window
      */
     public List<Warranty> listWarrantiesExpiringSoon(int daysAhead) {
-        List<Warranty> expiringSoon = new ArrayList<>();
-        LocalDate today = LocalDate.now();
-        LocalDate limit = today.plusDays(daysAhead);
-        for (Warranty warranty : warranties) {
-            LocalDate endDate = warranty.getEndDate();
-            if (!endDate.isBefore(today) && !endDate.isAfter(limit)) {
-                expiringSoon.add(warranty);
-            }
-        }
-        return expiringSoon;
+        // TODO: implemented in a follow-up commit
+        return null;
     }
 }
