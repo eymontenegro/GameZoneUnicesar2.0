@@ -93,8 +93,7 @@ public class PromotionService {
      * @return the list of all promotions
      */
     public List<Promotion> listAllPromotions() {
-        // TODO: implemented in a follow-up commit
-        return null;
+        return promotions;
     }
 
     /**
@@ -103,8 +102,14 @@ public class PromotionService {
      * @return the list of currently active promotions
      */
     public List<Promotion> listActivePromotions() {
-        // TODO: implemented in a follow-up commit
-        return null;
+        List<Promotion> activePromotions = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        for (Promotion promotion : promotions) {
+            if (promotion.isActive(today)) {
+                activePromotions.add(promotion);
+            }
+        }
+        return activePromotions;
     }
 
     /**
@@ -112,10 +117,15 @@ public class PromotionService {
      *
      * @param id the id of the promotion to find
      * @return the matching promotion
+     * @throws IllegalArgumentException if no promotion with that id exists
      */
     public Promotion findById(String id) {
-        // TODO: implemented in a follow-up commit
-        return null;
+        for (Promotion promotion : promotions) {
+            if (promotion.getId().equals(id)) {
+                return promotion;
+            }
+        }
+        throw new IllegalArgumentException("Unknown promotion id: " + id);
     }
 
     /**
