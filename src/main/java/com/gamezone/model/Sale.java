@@ -2,14 +2,12 @@ package com.gamezone.model;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
- * Represents a sale transaction made by a Client and handled by a Seller.
- * Contains a collection of SaleDetail items representing individual products sold.
+ * Represents a sale transaction in the GameZone store.
+ * Aggregates client, seller, items (SaleDetail), applied promotion, and date.
  */
 public class Sale {
 
@@ -18,75 +16,84 @@ public class Sale {
     private Client client;
     private Seller seller;
     private List<SaleDetail> details;
+    private Promotion promotion;
 
     /**
-     * Creates a new Sale with the given date, client, seller, and details list.
-     * A unique identifier is generated automatically for this sale.
+     * Constructs a new Sale with the specified ID, client, seller, and date.
      *
-     * @param date the date when the sale took place
+     * @param id the unique sale identifier
      * @param client the client who made the purchase
      * @param seller the seller who processed the sale
-     * @param details the list of sale details (items purchased)
+     * @param date the date of the sale
      */
-    public Sale(LocalDate date, Client client, Seller seller, List<SaleDetail> details) {
-        this.id = UUID.randomUUID().toString();
-        this.date = Objects.requireNonNull(date, "La fecha no puede ser nula.");
-        this.client = Objects.requireNonNull(client, "El cliente no puede ser nulo.");
-        this.seller = Objects.requireNonNull(seller, "El vendedor no puede ser nulo.");
-        Objects.requireNonNull(details, "La lista de detalles no puede ser nula.");
-        this.details = new ArrayList<>(details);
+    public Sale(String id, Client client, Seller seller, LocalDate date) {
+        this.id = Objects.requireNonNull(id, "Sale ID cannot be null.");
+        this.client = Objects.requireNonNull(client, "Client cannot be null.");
+        this.seller = Objects.requireNonNull(seller, "Seller cannot be null.");
+        this.date = (date != null) ? date : LocalDate.now();
+        this.details = new ArrayList<>();
+        this.promotion = null;
     }
 
-    /**
-     * Returns the unique identifier of this sale.
-     *
-     * @return the sale id
-     */
     public String getId() {
         return id;
     }
 
-    /**
-     * Returns the date of the sale.
-     *
-     * @return the sale date
-     */
+    public void setId(String id) {
+        this.id = id;
+    }
+
     public LocalDate getDate() {
         return date;
     }
 
-     /**
-     * Returns the client involved in the sale.
-     *
-     * @return the client
-     */
+    public void setDate(LocalDate date) {
+        this.date = date;
+    }
+
     public Client getClient() {
         return client;
     }
 
-   /**
-     * Returns the seller who handled the sale.
-     *
-     * @return the seller
-     */
+    public void setClient(Client client) {
+        this.client = client;
+    }
+
     public Seller getSeller() {
         return seller;
     }
 
-     /**
-     * Returns an unmodifiable list of sale details.
-     *
-     * @return the list of sale details
-     */
-    public List<SaleDetail> getDetails() {
-        return Collections.unmodifiableList(details);
+    public void setSeller(Seller seller) {
+        this.seller = seller;
     }
 
-   /**
-     * Calculates the total amount of the sale by summing up
-     * the subtotals of all detail lines.
+    public List<SaleDetail> getDetails() {
+        return new ArrayList<>(details);
+    }
+
+    public Promotion getPromotion() {
+        return promotion;
+    }
+
+    public void setPromotion(Promotion promotion) {
+        this.promotion = promotion;
+    }
+
+    /**
+     * Adds a sale detail line to this sale.
      *
-     * @return the total price of the sale
+     * @param detail the sale detail to add
+     */
+    public void addDetail(SaleDetail detail) {
+        if (detail != null) {
+            this.details.add(detail);
+        }
+    }
+
+    /**
+     * Calculates the gross total (subtotal) of the sale before applying any discount.
+     *
+     * @return subtotal amount of all item details
      */
     public double calculateTotal() {
         double total = 0.0;
@@ -96,15 +103,26 @@ public class Sale {
         return total;
     }
 
-       /**
-     * Confirms the sale.
-     * Validates that the sale contains at least one product detail
-     * and adds this sale to the client's purchase history.
+    /**
+     * Calculates the monetary discount amount based on the assigned promotion.
+     *
+     * @return discount amount, or 0.0 if no promotion is active/applied
      */
-    public void confirm() {
-        if (details.isEmpty()) {
-            throw new IllegalStateException("No se puede confirmar una venta sin al menos un producto.");
+    public double calculateDiscount() {
+        if (promotion != null && promotion.isActive(date)) {
+            return promotion.calculateDiscount(this);
         }
-        client.addPurchase(this.getId());
+        return 0.0;
+    }
+
+    /**
+     * Calculates the final net total after subtracting the discount from the gross total.
+     *
+     * @return final total amount
+     */
+    public double calculateFinalTotal() {
+        double grossTotal = calculateTotal();
+        double discount = calculateDiscount();
+        return Math.max(0.0, grossTotal - discount);
     }
 }
