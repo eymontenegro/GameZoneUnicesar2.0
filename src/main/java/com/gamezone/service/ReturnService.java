@@ -27,17 +27,33 @@ public class ReturnService {
 
     /**
      * Creates the service injecting all required dependencies and loads
-     * any previously saved returns from the file.
+     * any previously saved returns from the file, resolving references via saleService.
      *
      * @param repository the repository used to persist returns
-     * @param saleService the service used to look up the original sale
+     * @param saleService the service used to look up original sales
      * @param productService the service used to restore stock on returned products
      */
     public ReturnService(ReturnRepository repository, SaleService saleService, ProductService productService) {
         this.repository = repository;
         this.saleService = saleService;
         this.productService = productService;
-        this.returns = repository.loadAll();
+        this.returns = repository.loadAll(saleService.listAllSales());
+    }
+
+    /**
+     * Finds a sale by its ID within the registered sales list.
+     *
+     * @param saleId the ID of the sale to find
+     * @return the matching Sale object
+     * @throws IllegalArgumentException if the sale does not exist
+     */
+    private Sale findSaleById(String saleId) {
+        for (Sale sale : saleService.listAllSales()) {
+            if (sale.getId().equals(saleId)) {
+                return sale;
+            }
+        }
+        throw new IllegalArgumentException("La venta indicada no existe: " + saleId);
     }
 
     /**
@@ -73,12 +89,7 @@ public class ReturnService {
      *         the 30-day window, or references a product not in the sale
      */
     public Return registerReturn(String saleId, List<String> productIds, String reason) {
-        Sale sale;
-        try {
-            sale = saleService.findById(saleId);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("La venta indicada no existe: " + saleId);
-        }
+        Sale sale = findSaleById(saleId);
 
         if (!sale.canBeReturned()) {
             throw new IllegalArgumentException(
