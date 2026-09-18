@@ -84,7 +84,11 @@ public class WarrantyService {
      * @return the matching warranty, or null if none exists
      */
     public Warranty findWarrantyByProduct(String productId, String saleId) {
-        // TODO: implemented in a follow-up commit
+        for (Warranty warranty : warranties) {
+            if (warranty.getProduct().getId().equals(productId) && warranty.getSale().getId().equals(saleId)) {
+                return warranty;
+            }
+        }
         return null;
     }
 
@@ -94,8 +98,7 @@ public class WarrantyService {
      * @return the list of all warranties
      */
     public List<Warranty> listAllWarranties() {
-        // TODO: implemented in a follow-up commit
-        return null;
+        return warranties;
     }
 
     /**
@@ -104,19 +107,34 @@ public class WarrantyService {
      * @return the list of currently active warranties
      */
     public List<Warranty> listActiveWarranties() {
-        // TODO: implemented in a follow-up commit
-        return null;
+        List<Warranty> activeWarranties = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        for (Warranty warranty : warranties) {
+            if (warranty.isActive(today)) {
+                activeWarranties.add(warranty);
+            }
+        }
+        return activeWarranties;
     }
 
     /**
      * Returns the warranties whose end date falls within the given
-     * number of days from today.
+     * number of days from today (inclusive), and that have not
+     * already expired.
      *
      * @param daysAhead the number of days to look ahead
      * @return the list of warranties expiring within that window
      */
     public List<Warranty> listWarrantiesExpiringSoon(int daysAhead) {
-        // TODO: implemented in a follow-up commit
-        return null;
+        List<Warranty> expiringSoon = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        LocalDate limit = today.plusDays(daysAhead);
+        for (Warranty warranty : warranties) {
+            LocalDate endDate = warranty.getEndDate();
+            if (!endDate.isBefore(today) && !endDate.isAfter(limit)) {
+                expiringSoon.add(warranty);
+            }
+        }
+        return expiringSoon;
     }
 }
