@@ -1,35 +1,46 @@
 package com.gamezone;
 
 import com.gamezone.persistence.AccessoryRepository;
+import com.gamezone.persistence.PromotionRepository;
+import com.gamezone.persistence.SaleRepository;
 import com.gamezone.service.AccessoryService;
 import com.gamezone.service.PersonService;
 import com.gamezone.service.ProductService;
+import com.gamezone.service.PromotionService;
 import com.gamezone.service.SaleService;
 import com.gamezone.ui.Menu;
 
 /**
- * Entry point of the GameZone Unicesar application.
- * Wires together the service layer and starts the console-based
- * user interface.
+ * Main entry point for the GameZone application.
+ * Initializes repositories, business services, and launches the main console menu.
  */
 public class Main {
 
     /**
-     * Starts the GameZone Unicesar system: initializes the services
-     * (loading previously saved data automatically), then launches
-     * the main console menu.
-     *
-     * @param args command-line arguments (not used)
+     * Main execution method.
+     * 
+     * @param args command-line arguments
      */
     public static void main(String[] args) {
-        // Service layer initialization (automatically loads CSV files from data/ directory)
+        // Initialize independent services and repositories
         ProductService productService = new ProductService();
         AccessoryService accessoryService = new AccessoryService(new AccessoryRepository());
         PersonService personService = new PersonService();
-        SaleService saleService = new SaleService(productService, accessoryService, personService);
+        
+        PromotionRepository promotionRepository = new PromotionRepository();
+        PromotionService promotionService = new PromotionService(promotionRepository);
+        
+        // Initialize SaleService with the 5 required parameters
+        SaleService saleService = new SaleService(
+                new SaleRepository(),
+                personService,
+                productService,
+                accessoryService,
+                promotionService
+        );
 
-        // UI layer initialization and execution
-        Menu mainMenu = new Menu(productService, accessoryService, personService, saleService);
-        mainMenu.start();
+        // Initialize the main menu with all 5 services and display it
+        Menu mainMenu = new Menu(productService, accessoryService, personService, promotionService, saleService);
+        mainMenu.displayMenu();
     }
 }
