@@ -1,5 +1,7 @@
 package com.gamezone;
 
+import com.gamezone.persistence.AccessoryRepository;
+import com.gamezone.service.AccessoryService;
 import com.gamezone.service.PersonService;
 import com.gamezone.service.ProductService;
 import com.gamezone.service.SaleService;
@@ -22,13 +24,12 @@ public class Main {
     public static void main(String[] args) {
         // Service layer initialization (automatically loads CSV files from data/ directory)
         ProductService productService = new ProductService();
+        AccessoryService accessoryService = new AccessoryService(new AccessoryRepository());
         PersonService personService = new PersonService();
-        SaleService saleService = new SaleService(productService, personService);
+        SaleService saleService = new SaleService(productService, accessoryService, personService);
 
         // UI layer initialization and execution
-        Menu mainMenu = new Menu(productService, personService, saleService);
+        Menu mainMenu = new Menu(productService, accessoryService, personService, saleService);
         mainMenu.start();
     }
 }
-
-
