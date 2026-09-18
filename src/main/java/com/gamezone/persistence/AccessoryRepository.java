@@ -1,18 +1,18 @@
 package com.gamezone.persistence;
 
 import com.gamezone.model.Accessory;
-import com.gamezone.model.Controller;
 import com.gamezone.model.Cable;
+import com.gamezone.model.Controller;
 import com.gamezone.model.Memory;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.List;
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.util.ArrayList;
-import java.io.File;
+import java.util.List;
 
 /**
  * Handles saving and loading Accessory objects (Controller, Cable and
@@ -38,19 +38,16 @@ public class AccessoryRepository {
         String type;
         String specificData;
 
-        if (accessory instanceof Controller) {
-            Controller controller = (Controller) accessory;
+        if (accessory instanceof Controller controller) {
             type = "CONTROLLER";
             String consoles = String.join("|", controller.getCompatibleConsoleIds());
             specificData = controller.getConnectionType() + "," + consoles;
 
-        } else if (accessory instanceof Cable) {
-            Cable cable = (Cable) accessory;
+        } else if (accessory instanceof Cable cable) {
             type = "CABLE";
             specificData = cable.getLength() + "," + cable.getConnectorType();
 
-        } else if (accessory instanceof Memory) {
-            Memory memory = (Memory) accessory;
+        } else if (accessory instanceof Memory memory) {
             type = "MEMORY";
             String consoles = String.join("|", memory.getCompatibleConsoleIds());
             specificData = memory.getCapacity() + "," + memory.getType() + "," + consoles;
@@ -137,6 +134,9 @@ public class AccessoryRepository {
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
             while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) {
+                    continue;
+                }
                 accessories.add(csvLineToAccessory(line));
             }
         } catch (IOException e) {
@@ -146,6 +146,12 @@ public class AccessoryRepository {
         return accessories;
     }
 
+    /**
+     * Helper method to parse a pipe-separated string of console IDs into a List.
+     *
+     * @param field pipe-separated string of console IDs
+     * @return a list containing the parsed console IDs
+     */
     private List<String> parseConsoles(String field) {
         if (field == null || field.isEmpty()) {
             return new ArrayList<>();
