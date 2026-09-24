@@ -136,14 +136,14 @@ GameZoneUnicesar/
 │   └── Main.java                   # Entry point
 │
 ├── docs/                           # Analysis and design documentation
-│   ├── accessory-analysis.md
-│   ├── accessory-class-diagram.md
-│   ├── promotion-analysis.md
-│   ├── promotion-class-diagram.md
-│   ├── return-analysis.md
-│   ├── return-class-diagram.md
-│   ├── warranty-analysis.md
-│   └── warranty-class-diagram.md
+│   ├── analysis.md
+│   ├── class-diagram.md
+│   ├── hierarchy-diagram.md
+│   ├── layers-diagram.md
+│   └── ai-usage/
+│       ├── developer1-ai-log.md
+│       ├── developer2-ai-log.md
+│       └── leader-ai-log.md
 ├── TEAM.md
 └── README.md
 ```
