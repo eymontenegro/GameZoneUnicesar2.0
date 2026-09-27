@@ -52,7 +52,6 @@ classDiagram
     }
 
     class Console {
-        -String id
         -String brand
         -String model
         -String generation
