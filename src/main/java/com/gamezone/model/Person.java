@@ -1,8 +1,9 @@
 package com.gamezone.model;
 
 /**
- * Abstract class representing a person in the system.
- * Serves as a base class for specific roles like Client.
+ * Represents a generic person interacting with the store.
+ * This is the base class for all person types (clients, sellers),
+ * and holds the attributes and behavior common to any person.
  */
 public abstract class Person {
     private String id;
@@ -19,30 +20,19 @@ public abstract class Person {
         return id;
     }
 
-    public void setId(String id) {
-        this.id = id;
-    }
-
     public String getName() {
         return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
     }
 
     public String getPhone() {
         return phone;
     }
 
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-
     /**
-     * Abstract method to be implemented by subclasses to define role details.
+     * Builds a description of the person's role, combining common and
+     * particular attributes. Each subclass provides its own version.
      *
-     * @return A description of the person's role in the store.
+     * @return a text description of the person's role
      */
     public abstract String getRoleDescription();
 }
