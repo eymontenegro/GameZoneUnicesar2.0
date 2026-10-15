@@ -1,6 +1,7 @@
 package com.gamezone.model;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -9,7 +10,7 @@ import java.util.List;
  */
 public class Client extends Person {
     private String email;
-    private List<String> purchaseHistory;
+    private final List<String> purchaseHistory;
 
     public Client(String email, String id, String name, String phone) {
         super(id, name, phone);
@@ -21,8 +22,15 @@ public class Client extends Person {
         return email;
     }
 
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    /**
+     * Returns an unmodifiable view of the purchase history to prevent direct modification.
+     */
     public List<String> getPurchaseHistory() {
-        return purchaseHistory;
+        return Collections.unmodifiableList(purchaseHistory);
     }
 
     /**
@@ -31,7 +39,9 @@ public class Client extends Person {
      * @param saleId the id of the sale to register
      */
     public void addPurchase(String saleId) {
-        purchaseHistory.add(saleId);
+        if (saleId != null && !saleId.isBlank()) {
+            purchaseHistory.add(saleId);
+        }
     }
 
     @Override

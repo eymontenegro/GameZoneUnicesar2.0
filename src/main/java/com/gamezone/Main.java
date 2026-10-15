@@ -67,7 +67,7 @@ public class Main {
         // ReturnRepository only needs SaleService, since SaleService already
         // knows how to resolve both products and accessories by id.
         ReturnRepository returnRepository = new ReturnRepository();
-        ReturnService returnService = new ReturnService(returnRepository, saleService, productService);
+        ReturnService returnService = new ReturnService(returnRepository, saleService);
 
         // Initialize the main menu with all services, including WarrantyService, and display it
         Menu mainMenu = new Menu(productService, accessoryService, personService,

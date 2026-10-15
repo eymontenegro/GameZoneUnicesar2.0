@@ -12,6 +12,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -63,13 +64,21 @@ public class PromotionRepository {
      * any previous content.
      *
      * @param promotions the list of promotions to persist
-     * @throws RuntimeException if an I/O error occurs while writing
      */
     public void saveAll(List<Promotion> promotions) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_PATH))) {
-            for (Promotion promotion : promotions) {
-                writer.write(promotionToCsvLine(promotion));
-                writer.newLine();
+        File file = new File(FILE_PATH);
+        if (file.getParentFile() != null) {
+            file.getParentFile().mkdirs();
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+            if (promotions != null) {
+                for (Promotion promotion : promotions) {
+                    if (promotion != null) {
+                        writer.write(promotionToCsvLine(promotion));
+                        writer.newLine();
+                    }
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException("Error saving promotions: " + e.getMessage(), e);
@@ -78,38 +87,45 @@ public class PromotionRepository {
 
     /**
      * Reconstructs a single Promotion (PercentageDiscount, CategoryDiscount
-     * or BulkPurchaseDiscount) from one CSV-formatted line, based on the
-     * type indicated in the first column.
+     * or BulkPurchaseDiscount) from one CSV-formatted line.
      *
      * @param line a single line read from the CSV file
-     * @return the reconstructed Promotion object
-     * @throws IllegalArgumentException if the promotion type is not recognized
+     * @return the reconstructed Promotion object, or null if line is invalid/malformed
      */
     private Promotion csvLineToPromotion(String line) {
-        String[] parts = line.split(",");
-        String type = parts[0];
-        String id = parts[1];
-        String name = parts[2];
-        LocalDate startDate = LocalDate.parse(parts[3]);
-        LocalDate endDate = LocalDate.parse(parts[4]);
+        try {
+            String[] parts = line.split(",", -1);
+            if (parts.length < 6) {
+                return null;
+            }
 
-        if (type.equals("PERCENTAGE")) {
-            double percentage = Double.parseDouble(parts[5]);
-            return new PercentageDiscount(id, name, startDate, endDate, percentage);
+            String type = parts[0].trim();
+            String id = parts[1].trim();
+            String name = parts[2].trim();
+            LocalDate startDate = LocalDate.parse(parts[3].trim());
+            LocalDate endDate = LocalDate.parse(parts[4].trim());
 
-        } else if (type.equals("CATEGORY")) {
-            double percentage = Double.parseDouble(parts[5]);
-            String targetCategory = parts[6];
-            return new CategoryDiscount(id, name, startDate, endDate, percentage, targetCategory);
+            if ("PERCENTAGE".equalsIgnoreCase(type)) {
+                double percentage = Double.parseDouble(parts[5].trim());
+                return new PercentageDiscount(id, name, startDate, endDate, percentage);
 
-        } else if (type.equals("BULK")) {
-            int minimumQuantity = Integer.parseInt(parts[5]);
-            double percentage = Double.parseDouble(parts[6]);
-            return new BulkPurchaseDiscount(id, name, startDate, endDate, minimumQuantity, percentage);
+            } else if ("CATEGORY".equalsIgnoreCase(type)) {
+                if (parts.length < 7) return null;
+                double percentage = Double.parseDouble(parts[5].trim());
+                String targetCategory = parts[6].trim();
+                return new CategoryDiscount(id, name, startDate, endDate, percentage, targetCategory);
 
-        } else {
-            throw new IllegalArgumentException("Unknown promotion type: " + type);
+            } else if ("BULK".equalsIgnoreCase(type)) {
+                if (parts.length < 7) return null;
+                int minimumQuantity = Integer.parseInt(parts[5].trim());
+                double percentage = Double.parseDouble(parts[6].trim());
+                return new BulkPurchaseDiscount(id, name, startDate, endDate, minimumQuantity, percentage);
+            }
+        } catch (NumberFormatException | DateTimeParseException e) {
+            return null; // Skip malformed lines defensively
         }
+
+        return null;
     }
 
     /**
@@ -118,7 +134,6 @@ public class PromotionRepository {
      * of failing.
      *
      * @return the list of promotions loaded from the file
-     * @throws RuntimeException if an I/O error occurs while reading
      */
     public List<Promotion> loadAll() {
         List<Promotion> promotions = new ArrayList<>();
@@ -134,7 +149,10 @@ public class PromotionRepository {
                 if (line.trim().isEmpty()) {
                     continue;
                 }
-                promotions.add(csvLineToPromotion(line));
+                Promotion promotion = csvLineToPromotion(line);
+                if (promotion != null) {
+                    promotions.add(promotion);
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException("Error loading promotions: " + e.getMessage(), e);

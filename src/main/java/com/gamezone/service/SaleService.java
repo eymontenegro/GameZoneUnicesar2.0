@@ -12,7 +12,11 @@ import com.gamezone.model.Warranty;
 import com.gamezone.persistence.SaleRepository;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Applies the business rules for processing transactions/sales in GameZone.
@@ -21,97 +25,70 @@ import java.util.List;
  */
 public class SaleService {
 
-    private List<Sale> sales;
-    private SaleRepository saleRepository;
-    private PersonService personService;
-    private ProductService productService;
-    private AccessoryService accessoryService;
-    private PromotionService promotionService;
-    private WarrantyService warrantyService;
+    private final List<Sale> sales;
+    private final SaleRepository saleRepository;
+    private final PersonService personService;
+    private final ProductService productService;
+    private final AccessoryService accessoryService;
+    private final PromotionService promotionService;
+    private final WarrantyService warrantyService;
 
-    /**
-     * Constructs SaleService injecting all required service dependencies and the repository.
-     * Loads existing sales from CSV matching references across services.
-     *
-     * @param saleRepository the repository for managing sale persistence
-     * @param personService service for managing clients and sellers
-     * @param productService service for managing consoles and video games
-     * @param accessoryService service for managing store accessories
-     * @param promotionService service for managing active promotions
-     * @param warrantyService service for assigning and querying warranties
-     */
     public SaleService(SaleRepository saleRepository,
                        PersonService personService,
                        ProductService productService,
                        AccessoryService accessoryService,
                        PromotionService promotionService,
                        WarrantyService warrantyService) {
-        this.saleRepository = saleRepository;
-        this.personService = personService;
-        this.productService = productService;
-        this.accessoryService = accessoryService;
-        this.promotionService = promotionService;
-        this.warrantyService = warrantyService;
+        this.saleRepository = Objects.requireNonNull(saleRepository, "SaleRepository cannot be null");
+        this.personService = Objects.requireNonNull(personService, "PersonService cannot be null");
+        this.productService = Objects.requireNonNull(productService, "ProductService cannot be null");
+        this.accessoryService = Objects.requireNonNull(accessoryService, "AccessoryService cannot be null");
+        this.promotionService = Objects.requireNonNull(promotionService, "PromotionService cannot be null");
+        this.warrantyService = Objects.requireNonNull(warrantyService, "WarrantyService cannot be null");
 
-        // Load sales linking entities from respective services
-        this.sales = saleRepository.loadAll(
+        List<Sale> loadedSales = saleRepository.loadAll(
                 personService.listClients(),
                 personService.listSellers(),
                 productService.listAll(),
                 accessoryService.listAllAccessories(),
                 promotionService.listAllPromotions()
         );
+        this.sales = Collections.synchronizedList(loadedSales != null ? new ArrayList<>(loadedSales) : new ArrayList<>());
     }
 
-    /**
-     * Helper to find a product in either ProductService (VideoGames/Consoles) or AccessoryService (Accessories).
-     *
-     * @param productId the ID of the product or accessory to search for
-     * @return the matched Product object
-     * @throws IllegalArgumentException if no product or accessory exists with that ID
-     */
     public Product findProductOrAccessoryById(String productId) {
-        // Search in main products (VideoGame / Console)
-        for (Product p : productService.listAll()) {
-            if (p.getId().equals(productId)) {
-                return p;
-            }
+        if (productId == null || productId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Product ID cannot be null or empty.");
         }
-        // Search in accessories
-        for (Accessory a : accessoryService.listAllAccessories()) {
-            if (a.getId().equals(productId)) {
-                return a;
-            }
-        }
-        throw new IllegalArgumentException("No product or accessory was found with ID: " + productId);
+
+        return productService.listAll().stream()
+                .filter(p -> p != null && productId.equals(p.getId()))
+                .findFirst()
+                .map(p -> (Product) p)
+                .orElseGet(() -> accessoryService.listAllAccessories().stream()
+                        .filter(a -> a != null && productId.equals(a.getId()))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("No product or accessory was found with ID: " + productId))
+                );
     }
 
-    /**
-     * Processes and records a new sale.
-     * Evaluates stock availability, calculates subtotal, applies the best valid promotion,
-     * reduces inventory stock, assigns automatic basic warranties to consoles, assigns
-     * optional extended warranties requested by the seller, updates the client purchase
-     * history, and persists the sale.
-     *
-     * @param saleId ID of the new sale
-     * @param clientId ID of the client purchasing
-     * @param sellerId ID of the seller executing the transaction
-     * @param items list of SaleDetail items to include in the sale
-     * @param productIdsWithExtendedWarranty ids of the products in this sale that should
-     *        receive an extended warranty; may be null or empty if none was requested
-     * @return the fully processed Sale object
-     */
     public Sale processSale(String saleId, String clientId, String sellerId, List<SaleDetail> items,
-                             List<String> productIdsWithExtendedWarranty) {
+                            List<String> productIdsWithExtendedWarranty) {
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("The sale must contain at least one product.");
         }
 
-        Client client = personService.findClientById(clientId);
-        Seller seller = personService.findSellerById(sellerId);
+        Client client = Optional.ofNullable(personService.findClientById(clientId))
+                .orElseThrow(() -> new IllegalArgumentException("No client found with ID: " + clientId));
 
-        // 1. Validate sufficient stock before making any changes
+        Seller seller = Optional.ofNullable(personService.findSellerById(sellerId))
+                .orElseThrow(() -> new IllegalArgumentException("No seller found with ID: " + sellerId));
+
+        // 1. Validate stock
         for (SaleDetail detail : items) {
+            if (detail == null || detail.getProduct() == null) {
+                throw new IllegalArgumentException("Sale details contain invalid or null product entries.");
+            }
             Product product = detail.getProduct();
             if (product.getStock() < detail.getQuantity()) {
                 throw new IllegalStateException("Insufficient stock for product: " + product.getTitle()
@@ -119,55 +96,65 @@ public class SaleService {
             }
         }
 
-        // 2. Create Sale object
+        // 2. Build Sale
         Sale sale = new Sale(saleId, client, seller, LocalDate.now());
-        for (SaleDetail detail : items) {
-            sale.addDetail(detail);
-        }
+        items.forEach(sale::addDetail);
 
-        // 3. Evaluate and apply the best available promotion
+        // 3. Apply promotion
         Promotion bestPromotion = promotionService.findBestPromotionFor(sale);
         if (bestPromotion != null) {
-            sale.setPromotion(bestPromotion);
+            sale.setAppliedPromotionName(bestPromotion.getName());
+            sale.setDiscountAmount(bestPromotion.calculateDiscount(sale));
         }
 
-        // 4. Deduct stock from inventory
-        for (SaleDetail detail : items) {
-            Product product = detail.getProduct();
-            if (product instanceof Accessory) {
-                accessoryService.updateStock(product.getId(), detail.getQuantity());
-            } else {
-                productService.updateStock(product.getId(), detail.getQuantity());
+        List<SaleDetail> processedDetails = new ArrayList<>();
+        try {
+            // 4. Deduct Stock
+            for (SaleDetail detail : items) {
+                Product product = detail.getProduct();
+                if (product instanceof Accessory) {
+                    accessoryService.updateStock(product.getId(), detail.getQuantity());
+                } else {
+                    productService.updateStock(product.getId(), detail.getQuantity());
+                }
+                processedDetails.add(detail);
             }
+
+            // 5. Assign Warranties
+            for (SaleDetail detail : items) {
+                Product product = detail.getProduct();
+
+                if (product instanceof Console) {
+                    warrantyService.assignBasicWarranty(product, sale, sale.getDate());
+                }
+
+                if (productIdsWithExtendedWarranty != null && productIdsWithExtendedWarranty.contains(product.getId())) {
+                    Warranty extendedWarranty = warrantyService.assignExtendedWarranty(product, sale, sale.getDate());
+                    sale.addExtraCost(extendedWarranty.getAdditionalCost());
+                }
+            }
+
+            // 6. Register Client Purchase
+            personService.registerPurchase(clientId, saleId);
+
+            // 7. Persist
+            sales.add(sale);
+            saleRepository.saveAll(new ArrayList<>(sales));
+
+            return sale;
+        } catch (Exception ex) {
+            // Rollback stock deductions if processing fails midway
+            for (SaleDetail detail : processedDetails) {
+                restoreStock(detail.getProduct(), detail.getQuantity());
+            }
+            throw new RuntimeException("Failed to process sale ID " + saleId + ". Transaction rolled back.", ex);
         }
-
-        // 5. Assign warranties: automatic basic warranty for every console,
-        // plus an optional extended warranty for the products the seller selected.
-        for (SaleDetail detail : items) {
-            Product product = detail.getProduct();
-
-            if (product instanceof Console) {
-                warrantyService.assignBasicWarranty(product, sale, sale.getDate());
-            }
-
-            if (productIdsWithExtendedWarranty != null
-                    && productIdsWithExtendedWarranty.contains(product.getId())) {
-                Warranty extendedWarranty = warrantyService.assignExtendedWarranty(product, sale, sale.getDate());
-                sale.addExtraCost(extendedWarranty.getAdditionalCost());
-            }
-        }
-
-        // 6. Register sale in client's purchase history
-        personService.registerPurchase(clientId, saleId);
-
-        // 7. Save sale in memory and into the CSV file
-        sales.add(sale);
-        saleRepository.saveAll(sales);
-
-        return sale;
     }
 
     public void restoreStock(Product product, int quantity) {
+        if (product == null) {
+            return;
+        }
         if (product instanceof Accessory) {
             accessoryService.restoreStock(product.getId(), quantity);
         } else {
@@ -175,28 +162,22 @@ public class SaleService {
         }
     }
 
-    /**
-     * Returns the full list of registered sales.
-     *
-     * @return list of sales
-     */
     public List<Sale> listAllSales() {
-        return sales;
+        synchronized (sales) {
+            return new ArrayList<>(sales);
+        }
     }
 
-    /**
-     * Finds a sale by its identifier.
-     *
-     * @param saleId ID of the sale to find
-     * @return matched Sale object
-     * @throws IllegalArgumentException if no sale with that ID exists
-     */
     public Sale findById(String saleId) {
-        for (Sale sale : sales) {
-            if (sale.getId().equals(saleId)) {
-                return sale;
-            }
+        if (saleId == null || saleId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Sale ID cannot be null or empty.");
         }
-        throw new IllegalArgumentException("No registered sale exists with ID: " + saleId);
+
+        synchronized (sales) {
+            return sales.stream()
+                    .filter(s -> s != null && saleId.equals(s.getId()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("No registered sale exists with ID: " + saleId));
+        }
     }
 }
