@@ -1,15 +1,15 @@
 package com.gamezone.model;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
- * Represents a sale transaction made by a Client and handled by a Seller.
- * Contains a collection of SaleDetail items representing individual products sold.
+ * Represents a sale transaction in the GameZone store.
+ * Aggregates client, seller, items (SaleDetail), applied promotion name,
+ * discount amount, additional costs (warranties), and total final.
  */
 public class Sale {
 
@@ -18,93 +18,220 @@ public class Sale {
     private Client client;
     private Seller seller;
     private List<SaleDetail> details;
+    private String appliedPromotionName;
+    private double discountAmount;
+    private double additionalCosts;
+    private double total;
 
     /**
-     * Creates a new Sale with the given date, client, seller, and details list.
-     * A unique identifier is generated automatically for this sale.
+     * Constructs a new Sale with the specified ID, client, seller, and date.
      *
-     * @param date the date when the sale took place
+     * @param id the unique sale identifier
      * @param client the client who made the purchase
      * @param seller the seller who processed the sale
-     * @param details the list of sale details (items purchased)
+     * @param date the date of the sale
      */
-    public Sale(LocalDate date, Client client, Seller seller, List<SaleDetail> details) {
-        this.id = UUID.randomUUID().toString();
-        this.date = Objects.requireNonNull(date, "La fecha no puede ser nula.");
-        this.client = Objects.requireNonNull(client, "El cliente no puede ser nulo.");
-        this.seller = Objects.requireNonNull(seller, "El vendedor no puede ser nulo.");
-        Objects.requireNonNull(details, "La lista de detalles no puede ser nula.");
-        this.details = new ArrayList<>(details);
+    public Sale(String id, Client client, Seller seller, LocalDate date) {
+        this.id = Objects.requireNonNull(id, "Sale ID cannot be null.");
+        this.client = Objects.requireNonNull(client, "Client cannot be null.");
+        this.seller = Objects.requireNonNull(seller, "Seller cannot be null.");
+        this.date = (date != null) ? date : LocalDate.now();
+        this.details = new ArrayList<>();
+        this.appliedPromotionName = "Ninguna";
+        this.discountAmount = 0.0;
+        this.additionalCosts = 0.0;
+        this.total = 0.0;
     }
 
-    /**
-     * Returns the unique identifier of this sale.
-     *
-     * @return the sale id
-     */
     public String getId() {
         return id;
     }
 
-    /**
-     * Returns the date of the sale.
-     *
-     * @return the sale date
-     */
+    public void setId(String id) {
+        this.id = id;
+    }
+
     public LocalDate getDate() {
         return date;
     }
 
-     /**
-     * Returns the client involved in the sale.
-     *
-     * @return the client
-     */
+    public void setDate(LocalDate date) {
+        this.date = date;
+    }
+
     public Client getClient() {
         return client;
     }
 
-   /**
-     * Returns the seller who handled the sale.
-     *
-     * @return the seller
-     */
+    public void setClient(Client client) {
+        this.client = client;
+    }
+
     public Seller getSeller() {
         return seller;
     }
 
-     /**
-     * Returns an unmodifiable list of sale details.
-     *
-     * @return the list of sale details
-     */
-    public List<SaleDetail> getDetails() {
-        return Collections.unmodifiableList(details);
+    public void setSeller(Seller seller) {
+        this.seller = seller;
     }
 
-   /**
-     * Calculates the total amount of the sale by summing up
-     * the subtotals of all detail lines.
-     *
-     * @return the total price of the sale
-     */
-    public double calculateTotal() {
-        double total = 0.0;
-        for (SaleDetail detail : details) {
-            total += detail.getSubtotal();
-        }
+    public List<SaleDetail> getDetails() {
+        return new ArrayList<>(details);
+    }
+
+    public String getAppliedPromotionName() {
+        return appliedPromotionName;
+    }
+
+    public void setAppliedPromotionName(String appliedPromotionName) {
+        this.appliedPromotionName = (appliedPromotionName != null && !appliedPromotionName.trim().isEmpty())
+                ? appliedPromotionName : "Ninguna";
+    }
+
+    public double getDiscountAmount() {
+        return discountAmount;
+    }
+
+    public void setDiscountAmount(double discountAmount) {
+        this.discountAmount = Math.max(0.0, discountAmount);
+    }
+
+    public double getAdditionalCosts() {
+        return additionalCosts;
+    }
+
+    public void setAdditionalCosts(double additionalCosts) {
+        this.additionalCosts = Math.max(0.0, additionalCosts);
+    }
+
+    public double getTotal() {
         return total;
     }
 
-       /**
-     * Confirms the sale.
-     * Validates that the sale contains at least one product detail
-     * and adds this sale to the client's purchase history.
+    public void setTotal(double total) {
+        this.total = Math.max(0.0, total);
+    }
+
+    /**
+     * Adds a sale detail line to this sale.
+     *
+     * @param detail the sale detail to add
      */
-    public void confirm() {
-        if (details.isEmpty()) {
-            throw new IllegalStateException("No se puede confirmar una venta sin al menos un producto.");
+    public void addDetail(SaleDetail detail) {
+        if (detail != null) {
+            this.details.add(detail);
         }
-        client.addPurchase(this.getId());
+    }
+
+    /**
+     * Adds an additional cost to the sale (e.g. extended warranty cost).
+     *
+     * @param amount the additional cost to add
+     */
+    public void addExtraCost(double amount) {
+        if (amount > 0) {
+            this.additionalCosts += amount;
+        }
+    }
+
+    /**
+     * Calculates the gross subtotal of all items in the sale before discounts or extra costs.
+     *
+     * @return subtotal amount of all line items
+     */
+    public double calculateSubtotal() {
+        double subtotal = 0.0;
+        for (SaleDetail detail : details) {
+            subtotal += detail.getSubtotal();
+        }
+        return subtotal;
+    }
+
+    /**
+     * Legacy support method for subtotal calculation.
+     *
+     * @return subtotal amount of all line items
+     */
+    public double calculateTotal() {
+        return calculateSubtotal();
+    }
+
+    /**
+     * Recalculates and updates the final total of the sale based on subtotal,
+     * applied discount, and additional costs (A3).
+     * Final Total = (Subtotal - Discount) + AdditionalCosts.
+     *
+     * @return the calculated final total
+     */
+    public double calculateFinalTotal() {
+        double subtotal = calculateSubtotal();
+        double netSubtotal = Math.max(0.0, subtotal - discountAmount);
+        this.total = netSubtotal + additionalCosts;
+        return this.total;
+    }
+
+    /**
+     * Checks if the sale is eligible for a return on a specific date (within 30 calendar days).
+     *
+     * @param returnDate the date when the return is requested
+     * @return true if returnDate is within 30 days of the sale date
+     */
+    public boolean canBeReturned(LocalDate returnDate) {
+        if (returnDate == null) {
+            returnDate = LocalDate.now();
+        }
+        LocalDate limitDate = this.date.plusDays(30);
+        return !returnDate.isBefore(this.date) && !returnDate.isAfter(limitDate);
+    }
+
+    /**
+     * Checks if the sale is eligible for a return on the current date.
+     *
+     * @return true if current date is within 30 days of the sale date
+     */
+    public boolean canBeReturned() {
+        return canBeReturned(LocalDate.now());
+    }
+
+    /**
+     * Generates a formatted sale receipt string in Spanish showing breakdown
+     * of subtotal, applied promotion discount, extended warranty costs, and final total.
+     *
+     * @return formatted receipt text
+     */
+    public String generateReceipt() {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        StringBuilder receipt = new StringBuilder();
+
+        receipt.append("=========================================\n");
+        receipt.append("          GAMEZONE UNICESAR              \n");
+        receipt.append("          RECIBO DE VENTA                \n");
+        receipt.append("=========================================\n");
+        receipt.append("ID Venta: ").append(id).append("\n");
+        receipt.append("Fecha: ").append(date.format(formatter)).append("\n");
+        receipt.append("Cliente: ").append(client.getName()).append(" (ID: ").append(client.getId()).append(")\n");
+        receipt.append("Vendedor: ").append(seller.getName()).append(" (Código: ").append(seller.getEmployeeCode()).append(")\n");
+        receipt.append("-----------------------------------------\n");
+        receipt.append("DETALLE DE PRODUCTOS:\n");
+
+        for (SaleDetail detail : details) {
+            receipt.append(String.format(" - %s x%d @ $%.2f = $%.2f\n",
+                    detail.getProduct().getTitle(),
+                    detail.getQuantity(),
+                    detail.getUnitPrice(),
+                    detail.getSubtotal()));
+        }
+
+        double subtotal = calculateSubtotal();
+        receipt.append("-----------------------------------------\n");
+        receipt.append(String.format("Subtotal Productos:     $%.2f\n", subtotal));
+        receipt.append(String.format("Promoción Aplicada:     %s\n", appliedPromotionName));
+        receipt.append(String.format("Descuento Promocional: -$%.2f\n", discountAmount));
+        receipt.append(String.format("Garantías Extendidas:  +$%.2f\n", additionalCosts));
+        receipt.append("-----------------------------------------\n");
+        receipt.append(String.format("TOTAL FINAL:            $%.2f\n", calculateFinalTotal()));
+        receipt.append("=========================================\n");
+
+        return receipt.toString();
     }
 }
