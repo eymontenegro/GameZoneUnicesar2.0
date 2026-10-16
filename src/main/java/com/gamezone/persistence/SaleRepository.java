@@ -1,6 +1,5 @@
 package com.gamezone.persistence;
 
-import com.gamezone.model.Accessory;
 import com.gamezone.model.Client;
 import com.gamezone.model.Product;
 import com.gamezone.model.Promotion;
@@ -15,62 +14,72 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Handles saving and loading Sale objects to and from a CSV file.
- * Integrates references to Client, Seller, Product/Accessory, and Promotion entities.
+ * Handles persistence operations for {@link Sale} objects to and from a CSV file.
  */
 public class SaleRepository {
 
     private static final String FILE_PATH = "data/sales.csv";
 
     /**
-     * Converts a Sale object to a single CSV line format:
-     * id,clientId,sellerId,date,promotionId,productId1:quantity1:unitPrice1;productId2:quantity2...
-     * 
-     * @param sale the sale to convert
-     * @return the formatted CSV line string
+     * Converts a single {@link Sale} object into a CSV-formatted string line.
+     *
+     * @param sale the sale instance to convert
+     * @return a CSV-formatted representation of the sale
      */
     private String saleToCsvLine(Sale sale) {
-        String promoId = (sale.getPromotion() != null) ? sale.getPromotion().getId() : "NONE";
-        StringBuilder detailsBuilder = new StringBuilder();
-
-        List<SaleDetail> details = sale.getDetails();
-        for (int i = 0; i < details.size(); i++) {
-            SaleDetail detail = details.get(i);
-            detailsBuilder.append(detail.getProduct().getId())
-                    .append(":")
-                    .append(detail.getQuantity())
-                    .append(":")
-                    .append(detail.getUnitPrice());
-            if (i < details.size() - 1) {
-                detailsBuilder.append(";");
+        List<String> detailsFormatted = new ArrayList<>();
+        if (sale.getDetails() != null) {
+            for (SaleDetail detail : sale.getDetails()) {
+                if (detail != null && detail.getProduct() != null) {
+                    detailsFormatted.add(detail.getProduct().getId() + ":" 
+                            + detail.getQuantity() + ":" 
+                            + detail.getUnitPrice());
+                }
             }
         }
+        String detailsData = String.join(";", detailsFormatted);
 
-        return sale.getId() + ","
-                + sale.getClient().getId() + ","
-                + sale.getSeller().getId() + ","
-                + sale.getDate() + ","
-                + promoId + ","
-                + detailsBuilder.toString();
+        String sellerId = (sale.getSeller() != null) ? sale.getSeller().getId() : "";
+        String clientId = (sale.getClient() != null) ? sale.getClient().getId() : "";
+
+        return sale.getId() + "," 
+                + sale.getDate() + "," 
+                + sellerId + "," 
+                + clientId + "," 
+                + sale.getAppliedPromotionName() + "," 
+                + sale.getDiscountAmount() + "," 
+                + sale.getAdditionalCosts() + "," 
+                + sale.getTotal() + "," 
+                + detailsData;
     }
 
     /**
-     * Saves the list of sales to the CSV file.
+     * Saves all sales from the provided list to the CSV file, overwriting existing content.
      *
-     * @param sales list of sales to persist
-     * @throws RuntimeException if an I/O error occurs during saving
+     * @param sales the list of {@link Sale} objects to persist
+     * @throws RuntimeException if an I/O error occurs during the writing process
      */
     public void saveAll(List<Sale> sales) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_PATH))) {
-            for (Sale sale : sales) {
-                writer.write(saleToCsvLine(sale));
-                writer.newLine();
+        File file = new File(FILE_PATH);
+        if (file.getParentFile() != null) {
+            file.getParentFile().mkdirs();
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+            if (sales != null) {
+                for (Sale sale : sales) {
+                    if (sale != null) {
+                        writer.write(saleToCsvLine(sale));
+                        writer.newLine();
+                    }
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException("Error saving sales: " + e.getMessage(), e);
@@ -78,21 +87,25 @@ public class SaleRepository {
     }
 
     /**
-     * Loads all sales from the CSV file using existing repositories to resolve dependencies.
+     * Loads and reconstructs all sales from the CSV file.
+     * <p>
+     * Converts the provided list domain models into internal lookup maps to quickly resolve 
+     * and bind associated {@link Client}, {@link Seller}, and {@link Product} references.
+     * </p>
      *
-     * @param clients list of registered clients
-     * @param sellers list of registered sellers
-     * @param products list of registered products (consoles and video games)
-     * @param accessories list of registered accessories
-     * @param promotions list of registered promotions
-     * @return list of reconstructed Sale objects
-     * @throws RuntimeException if an I/O error occurs during loading
+     * @param clients     list of system clients
+     * @param sellers     list of system sellers
+     * @param products    list of main products (video games and consoles)
+     * @param accessories list of accessories
+     * @param promotions  list of active/registered promotions
+     * @return a reconstructed list of {@link Sale} objects
+     * @throws RuntimeException if an I/O error occurs during file reading
      */
     public List<Sale> loadAll(List<Client> clients,
                               List<Seller> sellers,
-                              List<Product> products,
-                              List<Accessory> accessories,
-                              List<Promotion> promotions) {
+                              List<? extends Product> products,
+                              List<? extends Product> accessories,
+                              List<? extends Promotion> promotions) {
 
         List<Sale> sales = new ArrayList<>();
         File file = new File(FILE_PATH);
@@ -101,62 +114,98 @@ public class SaleRepository {
             return sales;
         }
 
-        // Quick lookup maps
+        // 1. Map Clients by ID for O(1) lookup
         Map<String, Client> clientMap = new HashMap<>();
-        for (Client c : clients) clientMap.put(c.getId(), c);
+        if (clients != null) {
+            for (Client c : clients) {
+                if (c != null && c.getId() != null) {
+                    clientMap.put(c.getId(), c);
+                }
+            }
+        }
 
+        // 2. Map Sellers by ID for O(1) lookup
         Map<String, Seller> sellerMap = new HashMap<>();
-        for (Seller s : sellers) sellerMap.put(s.getId(), s);
+        if (sellers != null) {
+            for (Seller s : sellers) {
+                if (s != null && s.getId() != null) {
+                    sellerMap.put(s.getId(), s);
+                }
+            }
+        }
 
+        // 3. Map full catalog (Products & Accessories) by ID
         Map<String, Product> productMap = new HashMap<>();
-        for (Product p : products) productMap.put(p.getId(), p);
-        for (Accessory a : accessories) productMap.put(a.getId(), a);
+        if (products != null) {
+            for (Product p : products) {
+                if (p != null && p.getId() != null) {
+                    productMap.put(p.getId(), p);
+                }
+            }
+        }
+        if (accessories != null) {
+            for (Product a : accessories) {
+                if (a != null && a.getId() != null) {
+                    productMap.put(a.getId(), a);
+                }
+            }
+        }
 
-        Map<String, Promotion> promoMap = new HashMap<>();
-        for (Promotion pr : promotions) promoMap.put(pr.getId(), pr);
-
+        // 4. Parse CSV file and reconstruct Sale instances
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) continue;
+                if (line.trim().isEmpty()) {
+                    continue;
+                }
 
                 String[] parts = line.split(",", -1);
-                if (parts.length < 6) continue;
+                if (parts.length >= 9) {
+                    try {
+                        String id = parts[0].trim();
+                        LocalDate date = LocalDate.parse(parts[1].trim());
+                        String sellerId = parts[2].trim();
+                        String clientId = parts[3].trim();
+                        String promoName = parts[4].trim();
+                        double discountAmount = Double.parseDouble(parts[5].trim());
+                        double additionalCosts = Double.parseDouble(parts[6].trim());
+                        double total = Double.parseDouble(parts[7].trim());
+                        String detailsData = parts[8].trim();
 
-                String saleId = parts[0];
-                String clientId = parts[1];
-                String sellerId = parts[2];
-                LocalDate date = LocalDate.parse(parts[3]);
-                String promoId = parts[4];
-                String detailsStr = parts[5];
+                        Seller seller = sellerMap.get(sellerId);
+                        Client client = clientMap.get(clientId);
 
-                Client client = clientMap.get(clientId);
-                Seller seller = sellerMap.get(sellerId);
+                        if (seller != null && client != null) {
+                            Sale sale = new Sale(id, client, seller, date);
+                            
+                            sale.setAppliedPromotionName(promoName);
+                            sale.setDiscountAmount(discountAmount);
+                            sale.setAdditionalCosts(additionalCosts);
+                            sale.setTotal(total);
 
-                if (client != null && seller != null) {
-                    Sale sale = new Sale(saleId, client, seller, date);
+                            // Reconstruct sale items (SaleDetail)
+                            if (!detailsData.isEmpty()) {
+                                String[] detailsArr = detailsData.split(";");
+                                for (String detailStr : detailsArr) {
+                                    String[] itemParts = detailStr.split(":");
+                                    if (itemParts.length >= 3) {
+                                        String productId = itemParts[0].trim();
+                                        int quantity = Integer.parseInt(itemParts[1].trim());
+                                        double unitPrice = Double.parseDouble(itemParts[2].trim());
 
-                    if (!"NONE".equalsIgnoreCase(promoId) && promoMap.containsKey(promoId)) {
-                        sale.setPromotion(promoMap.get(promoId));
-                    }
-
-                    if (!detailsStr.isEmpty()) {
-                        String[] detailItems = detailsStr.split(";");
-                        for (String item : detailItems) {
-                            String[] itemParts = item.split(":");
-                            if (itemParts.length == 3) {
-                                String prodId = itemParts[0];
-                                int quantity = Integer.parseInt(itemParts[1]);
-                                double unitPrice = Double.parseDouble(itemParts[2]);
-
-                                Product product = productMap.get(prodId);
-                                if (product != null) {
-                                    sale.addDetail(new SaleDetail(product, quantity, unitPrice));
+                                        Product product = productMap.get(productId);
+                                        if (product != null) {
+                                            sale.addDetail(new SaleDetail(product, quantity, unitPrice));
+                                        }
+                                    }
                                 }
                             }
+
+                            sales.add(sale);
                         }
+                    } catch (NumberFormatException | DateTimeParseException e) {
+                        // Skip corrupted or unparseable lines defensively
                     }
-                    sales.add(sale);
                 }
             }
         } catch (IOException e) {
