@@ -23,9 +23,15 @@ public interface ConsoleCompatible {
 
     /**
      * Checks if the product is compatible with the given console ID.
+     * Provides a default implementation based on the compatible list.
      *
      * @param consoleId the console identifier to check
      * @return true if compatible, false otherwise
      */
-    boolean isCompatibleWith(String consoleId);
+    default boolean isCompatibleWith(String consoleId) {
+        if (consoleId == null || getCompatibleConsoleIds() == null) {
+            return false;
+        }
+        return getCompatibleConsoleIds().contains(consoleId);
+    }
 }
