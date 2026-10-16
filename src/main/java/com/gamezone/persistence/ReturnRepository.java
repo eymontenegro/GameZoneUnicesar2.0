@@ -12,23 +12,24 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Handles saving and loading Return objects to and from a CSV file,
  * so the return history persists between application runs.
- * Follows the same pattern as SaleRepository: reference resolution
- * (Sale and Product lookups) is done using the lists passed in by the
- * caller, keeping this class free of any dependency on the service layer.
+ * Reference resolution (Sale and Product lookups) is done using the lists
+ * passed in by the caller.
  */
 public class ReturnRepository {
 
     private static final String FILE_PATH = "data/returns.csv";
 
     /**
-     * Converts a single Return into one CSV-formatted line. The returned
-     * products are stored as a semicolon-separated list of product ids.
+     * Converts a single Return into one CSV-formatted line.
      *
      * @param returnObj the return to convert
      * @return a comma-separated line representing the return
@@ -37,33 +38,47 @@ public class ReturnRepository {
         StringBuilder productIdsBuilder = new StringBuilder();
         List<Product> returnedProducts = returnObj.getReturnedProducts();
 
-        for (int i = 0; i < returnedProducts.size(); i++) {
-            productIdsBuilder.append(returnedProducts.get(i).getId());
-            if (i < returnedProducts.size() - 1) {
-                productIdsBuilder.append(";");
+        if (returnedProducts != null) {
+            for (int i = 0; i < returnedProducts.size(); i++) {
+                Product product = returnedProducts.get(i);
+                if (product != null) {
+                    productIdsBuilder.append(product.getId());
+                    if (i < returnedProducts.size() - 1) {
+                        productIdsBuilder.append(";");
+                    }
+                }
             }
         }
 
+        String saleId = (returnObj.getOriginalSale() != null) ? returnObj.getOriginalSale().getId() : "";
+
         return returnObj.getId() + ","
-                + returnObj.getOriginalSale().getId() + ","
+                + saleId + ","
                 + returnObj.getDate() + ","
                 + returnObj.getReason() + ","
                 + returnObj.getRefundAmount() + ","
-                + productIdsBuilder;
+                + productIdsBuilder.toString();
     }
 
     /**
-     * Saves the full list of returns to the CSV file, overwriting
-     * any previous content.
+     * Saves the full list of returns to the CSV file, overwriting any previous content.
      *
      * @param returns the list of returns to persist
-     * @throws RuntimeException if an I/O error occurs while writing
      */
     public void saveAll(List<Return> returns) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_PATH))) {
-            for (Return returnObj : returns) {
-                writer.write(returnToCsvLine(returnObj));
-                writer.newLine();
+        File file = new File(FILE_PATH);
+        if (file.getParentFile() != null) {
+            file.getParentFile().mkdirs();
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+            if (returns != null) {
+                for (Return returnObj : returns) {
+                    if (returnObj != null && returnObj.getOriginalSale() != null) {
+                        writer.write(returnToCsvLine(returnObj));
+                        writer.newLine();
+                    }
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException("Error saving returns: " + e.getMessage(), e);
@@ -71,33 +86,19 @@ public class ReturnRepository {
     }
 
     /**
-     * Finds a sale by id within the given list of sales.
+     * Finds a product by id among the details of the given sale.
      *
-     * @param sales the list of sales to search
-     * @param saleId the id of the sale to find
-     * @return the matching sale, or null if not found
-     */
-    private Sale findSaleById(List<Sale> sales, String saleId) {
-        for (Sale sale : sales) {
-            if (sale.getId().equals(saleId)) {
-                return sale;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Finds a product by id among the details of the given sale. Checking
-     * the sale's own resolved product list first ensures both regular
-     * products and accessories are matched correctly.
-     *
-     * @param sale the sale whose details are searched
+     * @param sale      the sale whose details are searched
      * @param productId the id of the product to find
      * @return the matching product, or null if not found in the sale
      */
     private Product findProductInSale(Sale sale, String productId) {
+        if (sale == null || sale.getDetails() == null) {
+            return null;
+        }
+
         for (SaleDetail detail : sale.getDetails()) {
-            if (detail.getProduct().getId().equals(productId)) {
+            if (detail != null && detail.getProduct() != null && detail.getProduct().getId().equals(productId)) {
                 return detail.getProduct();
             }
         }
@@ -105,53 +106,53 @@ public class ReturnRepository {
     }
 
     /**
-     * Reconstructs a single Return from one CSV-formatted line, resolving
-     * the original sale and the returned products against the lists
-     * provided by the caller.
+     * Reconstructs a single Return from one CSV line.
      *
-     * @param line a single line read from the CSV file
-     * @param sales the list of existing sales, used to resolve the original sale
-     * @return the reconstructed Return object, or null if the referenced
-     *         sale no longer exists
+     * @param line    a single line read from the CSV file
+     * @param saleMap map of existing sales indexed by ID
+     * @return the reconstructed Return object, or null if invalid or missing sale
      */
-    private Return csvLineToReturn(String line, List<Sale> sales) {
-        String[] parts = line.split(",", -1);
-        String id = parts[0];
-        String saleId = parts[1];
-        LocalDate date = LocalDate.parse(parts[2]);
-        String reason = parts[3];
-        double refundAmount = Double.parseDouble(parts[4]);
-        String productIdsStr = parts[5];
+    private Return csvLineToReturn(String line, Map<String, Sale> saleMap) {
+        try {
+            String[] parts = line.split(",", -1);
+            if (parts.length < 6) {
+                return null;
+            }
 
-        Sale sale = findSaleById(sales, saleId);
-        if (sale == null) {
-            return null;
-        }
+            String id = parts[0].trim();
+            String saleId = parts[1].trim();
+            LocalDate date = LocalDate.parse(parts[2].trim());
+            String reason = parts[3].trim();
+            double refundAmount = Double.parseDouble(parts[4].trim());
+            String productIdsStr = parts[5].trim();
 
-        List<Product> returnedProducts = new ArrayList<>();
-        if (!productIdsStr.isEmpty()) {
-            String[] productIds = productIdsStr.split(";");
-            for (String productId : productIds) {
-                Product product = findProductInSale(sale, productId);
-                if (product != null) {
-                    returnedProducts.add(product);
+            Sale sale = saleMap.get(saleId);
+            if (sale == null) {
+                return null;
+            }
+
+            List<Product> returnedProducts = new ArrayList<>();
+            if (!productIdsStr.isEmpty()) {
+                String[] productIds = productIdsStr.split(";");
+                for (String productId : productIds) {
+                    Product product = findProductInSale(sale, productId.trim());
+                    if (product != null) {
+                        returnedProducts.add(product);
+                    }
                 }
             }
-        }
 
-        return new Return(id, date, sale, returnedProducts, reason, refundAmount);
+            return new Return(id, date, sale, returnedProducts, reason, refundAmount);
+        } catch (NumberFormatException | DateTimeParseException e) {
+            return null; // Skip malformed lines defensively
+        }
     }
 
     /**
-     * Loads the full list of returns from the CSV file, reconstructing
-     * relations using the provided list of existing sales (the returned
-     * products are resolved from each sale's own details). If the file
-     * does not exist yet (first run), returns an empty list instead
-     * of failing.
+     * Loads the full list of returns from the CSV file.
      *
      * @param sales the list of existing sales, used to resolve each return's original sale
      * @return the list of returns loaded from the file
-     * @throws RuntimeException if an I/O error occurs while reading
      */
     public List<Return> loadAll(List<Sale> sales) {
         List<Return> returns = new ArrayList<>();
@@ -161,13 +162,23 @@ public class ReturnRepository {
             return returns;
         }
 
+        // Map for fast O(1) sale lookup
+        Map<String, Sale> saleMap = new HashMap<>();
+        if (sales != null) {
+            for (Sale sale : sales) {
+                if (sale != null) {
+                    saleMap.put(sale.getId(), sale);
+                }
+            }
+        }
+
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) {
                     continue;
                 }
-                Return returnObj = csvLineToReturn(line, sales);
+                Return returnObj = csvLineToReturn(line, saleMap);
                 if (returnObj != null) {
                     returns.add(returnObj);
                 }
