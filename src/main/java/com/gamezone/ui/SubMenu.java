@@ -594,9 +594,9 @@ public class SubMenu {
             System.out.println("ID de la venta: " + sale.getId());
             System.out.println("Subtotal: $" + sale.calculateTotal());
 
-            if (sale.getPromotion() != null) {
-                System.out.println("Promoción aplicada: " + sale.getPromotion().getId()
-                        + " (descuento: $" + sale.calculateDiscount() + ")");
+            if (sale.getAppliedPromotionName() != null && !sale.getAppliedPromotionName().equals("Ninguna")) {
+                System.out.println("Promoción aplicada: " + sale.getAppliedPromotionName()
+                        + " (descuento: $" + sale.getDiscountAmount() + ")");
             }
 
             if (sale.getAdditionalCosts() > 0) {

@@ -8,183 +8,167 @@ import com.gamezone.persistence.ReturnRepository;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Applies the business rules for processing product returns: validating
- * the 30-day return window, validating that the requested products
- * belong to the original sale, restoring stock, and persisting the
- * return using ReturnRepository. Also generates the monthly balance
- * report combining sales and returns data.
+ * the 30-day return window, validating that requested products belong to
+ * the original sale and haven't already been returned, restoring stock,
+ * and persisting returns. Also generates monthly net balance reports.
  */
 public class ReturnService {
 
-    private List<Return> returns;
-    private ReturnRepository repository;
-    private SaleService saleService;
-    private ProductService productService;
+    private final List<Return> returns;
+    private final ReturnRepository repository;
+    private final SaleService saleService;
 
     /**
-     * Creates the service injecting all required dependencies and loads
-     * any previously saved returns from the file, resolving references via saleService.
+     * Constructs ReturnService injecting required dependencies.
      *
-     * @param repository the repository used to persist returns
-     * @param saleService the service used to look up original sales
-     * @param productService the service used to restore stock on returned products
+     * @param repository  the repository used to persist returns
+     * @param saleService the service used to look up original sales and restore stock
      */
-    public ReturnService(ReturnRepository repository, SaleService saleService, ProductService productService) {
-        this.repository = repository;
-        this.saleService = saleService;
-        this.productService = productService;
-        this.returns = repository.loadAll(saleService.listAllSales());
+    public ReturnService(ReturnRepository repository, SaleService saleService) {
+        this.repository = Objects.requireNonNull(repository, "ReturnRepository cannot be null.");
+        this.saleService = Objects.requireNonNull(saleService, "SaleService cannot be null.");
+
+        List<Return> loadedReturns = repository.loadAll(saleService.listAllSales());
+        this.returns = Collections.synchronizedList(loadedReturns != null ? new ArrayList<>(loadedReturns) : new ArrayList<>());
     }
 
-    /**
-     * Finds a sale by its ID within the registered sales list.
-     *
-     * @param saleId the ID of the sale to find
-     * @return the matching Sale object
-     * @throws IllegalArgumentException if the sale does not exist
-     */
     private Sale findSaleById(String saleId) {
-        for (Sale sale : saleService.listAllSales()) {
-            if (sale.getId().equals(saleId)) {
-                return sale;
-            }
+        if (saleId == null || saleId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Sale ID cannot be null or empty.");
         }
-        throw new IllegalArgumentException("La venta indicada no existe: " + saleId);
+        try {
+            return saleService.findById(saleId);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("The specified sale does not exist: " + saleId, e);
+        }
     }
 
-    /**
-     * Checks whether a product with the given id is part of the given sale.
-     *
-     * @param sale the sale to search
-     * @param productId the id of the product to look for
-     * @return the matching product from the sale's details
-     * @throws IllegalArgumentException if the product does not belong to the sale
-     */
     private Product findProductInSale(Sale sale, String productId) {
-        for (SaleDetail detail : sale.getDetails()) {
-            if (detail.getProduct().getId().equals(productId)) {
-                return detail.getProduct();
+        if (sale != null && sale.getDetails() != null && productId != null) {
+            for (SaleDetail detail : sale.getDetails()) {
+                if (detail != null && detail.getProduct() != null && productId.equals(detail.getProduct().getId())) {
+                    return detail.getProduct();
+                }
             }
         }
-        throw new IllegalArgumentException("El producto con ID " + productId
-                + " no pertenece a la venta " + sale.getId() + ".");
+        throw new IllegalArgumentException("Product ID " + productId + " does not belong to sale " + (sale != null ? sale.getId() : "unknown") + ".");
     }
 
     /**
      * Registers a new return for one or more products from an existing sale.
-     * Validates that the sale exists, that it is still within the 30-day
-     * return window, and that every requested product actually belongs to
-     * that sale. On success, restores the stock of each returned product
-     * and persists the return.
      *
-     * @param saleId the id of the original sale
+     * @param saleId     the id of the original sale
      * @param productIds the ids of the products being returned
-     * @param reason the reason for the return
+     * @param reason     the reason for the return
      * @return the newly created and persisted Return
-     * @throws IllegalArgumentException if the sale does not exist, is outside
-     *         the 30-day window, or references a product not in the sale
      */
     public Return registerReturn(String saleId, List<String> productIds, String reason) {
         Sale sale = findSaleById(saleId);
 
         if (!sale.canBeReturned()) {
-            throw new IllegalArgumentException(
-                    "La devolución no puede procesarse: han pasado más de 30 días desde la venta.");
+            throw new IllegalArgumentException("Return cannot be processed: more than 30 days have passed since purchase.");
         }
 
         if (productIds == null || productIds.isEmpty()) {
-            throw new IllegalArgumentException("Debe indicar al menos un producto a devolver.");
+            throw new IllegalArgumentException("At least one product must be specified for return.");
         }
+
+        // Check for already returned products under this sale to prevent double-refunding
+        List<Return> previousReturns = viewReturnsBySale(saleId);
+        List<String> alreadyReturnedProductIds = previousReturns.stream()
+                .filter(r -> r.getReturnedProducts() != null)
+                .flatMap(r -> r.getReturnedProducts().stream())
+                .map(Product::getId)
+                .collect(Collectors.toList());
 
         List<Product> returnedProducts = new ArrayList<>();
         for (String productId : productIds) {
-            returnedProducts.add(findProductInSale(sale, productId));
+            if (productId != null) {
+                if (alreadyReturnedProductIds.contains(productId)) {
+                    throw new IllegalArgumentException("Product ID " + productId + " has already been returned for this sale.");
+                }
+                returnedProducts.add(findProductInSale(sale, productId));
+            }
+        }
+
+        if (returnedProducts.isEmpty()) {
+            throw new IllegalArgumentException("No valid products were found to process the return.");
         }
 
         String returnId = UUID.randomUUID().toString();
         Return newReturn = new Return(returnId, LocalDate.now(), sale, returnedProducts, reason, 0.0);
         newReturn.calculateRefundAmount();
 
-        for (Product product : returnedProducts) {   
-            saleService.restoreStock(product, 1);     
+        // Restore 1 unit per item (or adapt to quantity if SaleDetail supports multi-quantity returns)
+        for (Product product : returnedProducts) {
+            saleService.restoreStock(product, 1);
         }
 
-        returns.add(newReturn);
-        repository.saveAll(returns);
+        synchronized (returns) {
+            returns.add(newReturn);
+            repository.saveAll(new ArrayList<>(returns));
+        }
 
         return newReturn;
     }
 
-    /**
-     * Returns the full list of registered returns.
-     *
-     * @return the list of all returns
-     */
     public List<Return> viewAllReturns() {
-        return returns;
+        synchronized (returns) {
+            return new ArrayList<>(returns);
+        }
     }
 
-    /**
-     * Returns the list of returns whose original sale belongs to the given customer.
-     *
-     * @param customerId the id of the client
-     * @return the list of returns made by that customer
-     */
     public List<Return> viewReturnsByCustomer(String customerId) {
-        List<Return> customerReturns = new ArrayList<>();
-        for (Return returnObj : returns) {
-            if (returnObj.getOriginalSale().getClient().getId().equals(customerId)) {
-                customerReturns.add(returnObj);
-            }
+        if (customerId == null) {
+            return Collections.emptyList();
         }
-        return customerReturns;
+
+        synchronized (returns) {
+            return returns.stream()
+                    .filter(r -> r != null && r.getOriginalSale() != null && r.getOriginalSale().getClient() != null)
+                    .filter(r -> customerId.equals(r.getOriginalSale().getClient().getId()))
+                    .collect(Collectors.toList());
+        }
     }
 
-    /**
-     * Returns the list of returns associated with the given sale.
-     *
-     * @param saleId the id of the sale
-     * @return the list of returns for that sale
-     */
     public List<Return> viewReturnsBySale(String saleId) {
-        List<Return> saleReturns = new ArrayList<>();
-        for (Return returnObj : returns) {
-            if (returnObj.getOriginalSale().getId().equals(saleId)) {
-                saleReturns.add(returnObj);
-            }
+        if (saleId == null) {
+            return Collections.emptyList();
         }
-        return saleReturns;
+
+        synchronized (returns) {
+            return returns.stream()
+                    .filter(r -> r != null && r.getOriginalSale() != null)
+                    .filter(r -> saleId.equals(r.getOriginalSale().getId()))
+                    .collect(Collectors.toList());
+        }
     }
 
-    /**
-     * Generates the net balance for a given month and year: the total of
-     * all sales made in that period minus the total of all returns
-     * refunded in that same period. This lets the owner see the real
-     * income for the month, after accounting for refunds.
-     *
-     * @param month the month to evaluate (1-12)
-     * @param year the year to evaluate
-     * @return the net balance (sales minus returns) for that period
-     */
     public double generateMonthlyBalance(int month, int year) {
-        double totalSales = 0.0;
-        for (Sale sale : saleService.listAllSales()) {
-            LocalDate date = sale.getDate();
-            if (date.getMonthValue() == month && date.getYear() == year) {
-                totalSales += sale.calculateFinalTotal();
-            }
-        }
+        double totalSales = Optional.ofNullable(saleService.listAllSales())
+                .orElse(Collections.emptyList())
+                .stream()
+                .filter(sale -> sale != null && sale.getDate() != null)
+                .filter(sale -> sale.getDate().getMonthValue() == month && sale.getDate().getYear() == year)
+                .mapToDouble(Sale::calculateFinalTotal)
+                .sum();
 
-        double totalReturns = 0.0;
-        for (Return returnObj : returns) {
-            LocalDate date = returnObj.getDate();
-            if (date.getMonthValue() == month && date.getYear() == year) {
-                totalReturns += returnObj.getRefundAmount();
-            }
+        double totalReturns;
+        synchronized (returns) {
+            totalReturns = returns.stream()
+                    .filter(r -> r != null && r.getDate() != null)
+                    .filter(r -> r.getDate().getMonthValue() == month && r.getDate().getYear() == year)
+                    .mapToDouble(Return::getRefundAmount)
+                    .sum();
         }
 
         return totalSales - totalReturns;

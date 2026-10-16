@@ -7,7 +7,7 @@ package com.gamezone.model;
  */
 public abstract class Accessory extends Product {
 /**
-     * Creates a new accessory with common product attributes and compatible console IDs.
+     * Creates a new accessory with common product attributes.
      *
      * @param id the product identifier
      * @param title the product title
