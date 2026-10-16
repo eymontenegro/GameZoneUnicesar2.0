@@ -8,6 +8,7 @@ import java.util.List;
  * Extends the abstract Accessory class and implements ConsoleCompatible.
  */
 public class Memory extends Accessory implements ConsoleCompatible {
+
     private int capacity;
     private String type;
     private List<String> compatibleConsoleIds;
@@ -27,7 +28,7 @@ public class Memory extends Accessory implements ConsoleCompatible {
         super(id, title, price, stock);
         this.capacity = capacity;
         this.type = type;
-        this.compatibleConsoleIds = (compatibleConsoleIds != null) ? compatibleConsoleIds : new ArrayList<>();
+        this.compatibleConsoleIds = (compatibleConsoleIds != null) ? new ArrayList<>(compatibleConsoleIds) : new ArrayList<>();
     }
 
     /**
@@ -86,7 +87,7 @@ public class Memory extends Accessory implements ConsoleCompatible {
         if (this.compatibleConsoleIds == null) {
             this.compatibleConsoleIds = new ArrayList<>();
         }
-        if (consoleId != null && !this.compatibleConsoleIds.contains(consoleId)) {
+        if (consoleId != null && !consoleId.trim().isEmpty() && !this.compatibleConsoleIds.contains(consoleId)) {
             this.compatibleConsoleIds.add(consoleId);
         }
     }
@@ -109,6 +110,7 @@ public class Memory extends Accessory implements ConsoleCompatible {
      */
     @Override
     public String describe() {
-        return getTitle() + " es una memoria tipo " + type + " de " + capacity + "GB, precio: $" + getPrice() + ", stock: " + getStock();
+        return String.format("%s es una memoria tipo %s de %dGB, precio: $%.2f, stock: %d",
+                getTitle(), type, capacity, getPrice(), getStock());
     }
 }
