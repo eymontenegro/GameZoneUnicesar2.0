@@ -21,6 +21,7 @@ import java.util.List;
  */
 public class AccessoryRepository {
 
+    private static final String FILE_PATH = "data/accessories.csv";
     private static final String CONSOLE_SEPARATOR = "\\|";
 
     /**
@@ -40,7 +41,8 @@ public class AccessoryRepository {
 
         if (accessory instanceof Controller controller) {
             type = "CONTROLLER";
-            String consoles = String.join("|", controller.getCompatibleConsoleIds());
+            List<String> consolesList = controller.getCompatibleConsoleIds();
+            String consoles = (consolesList != null) ? String.join("|", consolesList) : "";
             specificData = controller.getConnectionType() + "," + consoles;
 
         } else if (accessory instanceof Cable cable) {
@@ -49,7 +51,8 @@ public class AccessoryRepository {
 
         } else if (accessory instanceof Memory memory) {
             type = "MEMORY";
-            String consoles = String.join("|", memory.getCompatibleConsoleIds());
+            List<String> consolesList = memory.getCompatibleConsoleIds();
+            String consoles = (consolesList != null) ? String.join("|", consolesList) : "";
             specificData = memory.getCapacity() + "," + memory.getType() + "," + consoles;
 
         } else {
@@ -60,17 +63,24 @@ public class AccessoryRepository {
     }
 
     /**
-     * Saves the full list of accessories to the CSV file, overwriting
-     * any previous content.
+     * Saves the full list of accessories to the CSV file, overwriting any previous content.
      *
      * @param accessories the list of accessories to persist
-     * @throws RuntimeException if an I/O error occurs while writing
      */
     public void saveAll(List<Accessory> accessories) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter("data/accessories.csv"))) {
-            for (Accessory accessory : accessories) {
-                writer.write(accessoryToCsvLine(accessory));
-                writer.newLine();
+        File file = new File(FILE_PATH);
+        if (file.getParentFile() != null) {
+            file.getParentFile().mkdirs();
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+            if (accessories != null) {
+                for (Accessory accessory : accessories) {
+                    if (accessory != null) {
+                        writer.write(accessoryToCsvLine(accessory));
+                        writer.newLine();
+                    }
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException("Error saving accessories: " + e.getMessage(), e);
@@ -78,54 +88,58 @@ public class AccessoryRepository {
     }
 
     /**
-     * Reconstructs a single Accessory (Controller, Cable or Memory) from
-     * one CSV-formatted line, based on the type indicated in the first
-     * column.
+     * Reconstructs a single Accessory (Controller, Cable or Memory) from one CSV line.
      *
      * @param line a single line read from the CSV file
-     * @return the reconstructed Accessory object
-     * @throws IllegalArgumentException if the accessory type is not recognized
+     * @return the reconstructed Accessory object, or null if malformed/unrecognized
      */
     private Accessory csvLineToAccessory(String line) {
-        String[] parts = line.split(",");
-        String type = parts[0];
-        String id = parts[1];
-        String title = parts[2];
-        double price = Double.parseDouble(parts[3]);
-        int stock = Integer.parseInt(parts[4]);
+        try {
+            String[] parts = line.split(",", -1);
+            if (parts.length < 5) {
+                return null;
+            }
 
-        if (type.equals("CONTROLLER")) {
-            String connectionType = parts[5];
-            List<String> consoles = parseConsoles(parts.length > 6 ? parts[6] : "");
-            return new Controller(id, title, price, stock, connectionType, consoles);
+            String type = parts[0].trim();
+            String id = parts[1].trim();
+            String title = parts[2].trim();
+            double price = Double.parseDouble(parts[3].trim());
+            int stock = Integer.parseInt(parts[4].trim());
 
-        } else if (type.equals("CABLE")) {
-            double length = Double.parseDouble(parts[5]);
-            String connectorType = parts[6];
-            return new Cable(id, title, price, stock, length, connectorType);
+            if ("CONTROLLER".equalsIgnoreCase(type)) {
+                if (parts.length < 6) return null;
+                String connectionType = parts[5].trim();
+                List<String> consoles = parseConsoles(parts.length > 6 ? parts[6].trim() : "");
+                return new Controller(id, title, price, stock, connectionType, consoles);
 
-        } else if (type.equals("MEMORY")) {
-            int capacity = Integer.parseInt(parts[5]);
-            String memoryType = parts[6];
-            List<String> consoles = parseConsoles(parts.length > 7 ? parts[7] : "");
-            return new Memory(id, title, price, stock, capacity, memoryType, consoles);
+            } else if ("CABLE".equalsIgnoreCase(type)) {
+                if (parts.length < 7) return null;
+                double length = Double.parseDouble(parts[5].trim());
+                String connectorType = parts[6].trim();
+                return new Cable(id, title, price, stock, length, connectorType);
 
-        } else {
-            throw new IllegalArgumentException("Unknown accessory type: " + type);
+            } else if ("MEMORY".equalsIgnoreCase(type)) {
+                if (parts.length < 7) return null;
+                int capacity = Integer.parseInt(parts[5].trim());
+                String memoryType = parts[6].trim();
+                List<String> consoles = parseConsoles(parts.length > 7 ? parts[7].trim() : "");
+                return new Memory(id, title, price, stock, capacity, memoryType, consoles);
+            }
+        } catch (NumberFormatException e) {
+            return null; // Skip malformed numerical values defensively
         }
+
+        return null;
     }
 
     /**
-     * Loads the full list of accessories from the CSV file. If the file
-     * does not exist yet (first run), returns an empty list instead
-     * of failing.
+     * Loads the full list of accessories from the CSV file.
      *
      * @return the list of accessories loaded from the file
-     * @throws RuntimeException if an I/O error occurs while reading
      */
     public List<Accessory> loadAll() {
         List<Accessory> accessories = new ArrayList<>();
-        File file = new File("data/accessories.csv");
+        File file = new File(FILE_PATH);
 
         if (!file.exists()) {
             return accessories;
@@ -137,7 +151,10 @@ public class AccessoryRepository {
                 if (line.trim().isEmpty()) {
                     continue;
                 }
-                accessories.add(csvLineToAccessory(line));
+                Accessory accessory = csvLineToAccessory(line);
+                if (accessory != null) {
+                    accessories.add(accessory);
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException("Error loading accessories: " + e.getMessage(), e);
