@@ -1,101 +1,120 @@
 package com.gamezone.service;
 
-import com.gamezone.persistence.AccessoryRepository;
 import com.gamezone.model.Accessory;
-import com.gamezone.model.Controller;
 import com.gamezone.model.Cable;
-import com.gamezone.model.Memory;
 import com.gamezone.model.ConsoleCompatible;
-import java.util.List;
+import com.gamezone.model.Controller;
+import com.gamezone.model.Memory;
+import com.gamezone.persistence.AccessoryRepository;
+
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Applies the business rules for managing accessories: registering new
- * controllers, cables and memories, listing them, checking console
+ * controllers, cables, and memories, listing them, checking console
  * compatibility, and updating stock. Uses AccessoryRepository to keep
- * the file in sync with every change.
+ * persistence synchronized.
  */
 public class AccessoryService {
-    private List<Accessory> accessories;
-    private AccessoryRepository repository;
+
+    private final List<Accessory> accessories;
+    private final AccessoryRepository repository;
 
     /**
      * Creates the service using the given repository and loads any
-     * previously saved accessories from the file, so the inventory
-     * is available as soon as the application starts.
+     * previously saved accessories from storage.
      *
      * @param repository the repository used to persist accessories
      */
     public AccessoryService(AccessoryRepository repository) {
-        this.repository = repository;
-        this.accessories = repository.loadAll();
+        this.repository = Objects.requireNonNull(repository, "AccessoryRepository cannot be null.");
+        List<Accessory> loaded = repository.loadAll();
+        this.accessories = Collections.synchronizedList(loaded != null ? new ArrayList<>(loaded) : new ArrayList<>());
     }
 
     /**
-     * Registers a new controller and immediately saves the updated
-     * inventory to the file.
-     *
-     * @param id the accessory identifier
-     * @param title the accessory title
-     * @param price the accessory price
-     * @param stock the initial available stock
-     * @param connectionType the type of connection ("Wireless" or "Wired")
-     * @param compatibleConsoleIds the consoles this controller works with
+     * Validates basic inputs (id, title, price, stock) and checks for duplicates.
      */
+    private void validateBasicData(String id, String title, double price, int stock) {
+        if (id == null || id.trim().isEmpty()) {
+            throw new IllegalArgumentException("Accessory ID cannot be empty.");
+        }
+        if (existsId(id)) {
+            throw new IllegalArgumentException("An accessory with ID already exists: " + id);
+        }
+        if (title == null || title.trim().isEmpty()) {
+            throw new IllegalArgumentException("Accessory title cannot be empty.");
+        }
+        if (price < 0) {
+            throw new IllegalArgumentException("Price cannot be negative.");
+        }
+        if (stock < 0) {
+            throw new IllegalArgumentException("Stock cannot be negative.");
+        }
+    }
+
+    /**
+     * Checks if an accessory with the given ID already exists (case-insensitive).
+     */
+    private boolean existsId(String id) {
+        synchronized (accessories) {
+            return accessories.stream()
+                    .filter(Objects::nonNull)
+                    .anyMatch(a -> a.getId() != null && a.getId().equalsIgnoreCase(id.trim()));
+        }
+    }
+
     public void registerController(String id, String title, double price, int stock,
-                                    String connectionType, List<String> compatibleConsoleIds) {
-        validateBasicData(price, stock);
+                                   String connectionType, List<String> compatibleConsoleIds) {
+        validateBasicData(id, title, price, stock);
+        if (connectionType == null || connectionType.trim().isEmpty()) {
+            throw new IllegalArgumentException("Connection type cannot be empty.");
+        }
         Controller newController = new Controller(id, title, price, stock, connectionType, compatibleConsoleIds);
-        accessories.add(newController);
-        repository.saveAll(accessories);
+        saveAccessory(newController);
     }
 
-    /**
-     * Registers a new cable and immediately saves the updated
-     * inventory to the file.
-     *
-     * @param id the accessory identifier
-     * @param title the accessory title
-     * @param price the accessory price
-     * @param stock the initial available stock
-     * @param length the cable length in meters
-     * @param connectorType the type of connector (HDMI, USB, optical, etc.)
-     */
     public void registerCable(String id, String title, double price, int stock,
-                               double length, String connectorType) {
-        validateBasicData(price, stock);
+                              double length, String connectorType) {
+        validateBasicData(id, title, price, stock);
+        if (length <= 0) {
+            throw new IllegalArgumentException("Cable length must be greater than 0.");
+        }
+        if (connectorType == null || connectorType.trim().isEmpty()) {
+            throw new IllegalArgumentException("Connector type cannot be empty.");
+        }
         Cable newCable = new Cable(id, title, price, stock, length, connectorType);
-        accessories.add(newCable);
-        repository.saveAll(accessories);
+        saveAccessory(newCable);
     }
 
-    /**
-     * Registers a new memory and immediately saves the updated
-     * inventory to the file.
-     *
-     * @param id the accessory identifier
-     * @param title the accessory title
-     * @param price the accessory price
-     * @param stock the initial available stock
-     * @param capacity the storage capacity in gigabytes
-     * @param type the type of memory (SD, microSD, proprietary card, etc.)
-     * @param compatibleConsoleIds the consoles this memory works with
-     */
     public void registerMemory(String id, String title, double price, int stock,
-                                int capacity, String type, List<String> compatibleConsoleIds) {
-        validateBasicData(price, stock);
+                               int capacity, String type, List<String> compatibleConsoleIds) {
+        validateBasicData(id, title, price, stock);
+        if (capacity <= 0) {
+            throw new IllegalArgumentException("Memory capacity must be greater than 0 GB.");
+        }
         Memory newMemory = new Memory(id, title, price, stock, capacity, type, compatibleConsoleIds);
-        accessories.add(newMemory);
-        repository.saveAll(accessories);
+        saveAccessory(newMemory);
+    }
+
+    private void saveAccessory(Accessory accessory) {
+        synchronized (accessories) {
+            accessories.add(accessory);
+            repository.saveAll(new ArrayList<>(accessories));
+        }
     }
 
     /**
-     * Returns the full list of currently available accessories.
-     *
-     * @return the list of accessories in inventory
+     * Returns a copy of the list of currently available accessories.
      */
     public List<Accessory> listAllAccessories() {
-        return accessories;
+        synchronized (accessories) {
+            return new ArrayList<>(accessories);
+        }
     }
 
     /**
@@ -105,107 +124,84 @@ public class AccessoryService {
      * @return the list of accessories of that type
      */
     public List<Accessory> listAccessoriesByType(String type) {
-        List<Accessory> result = new ArrayList<>();
-        for (Accessory accessory : accessories) {
-            if (type.equalsIgnoreCase("CONTROLLER") && accessory instanceof Controller) {
-                result.add(accessory);
-            } else if (type.equalsIgnoreCase("CABLE") && accessory instanceof Cable) {
-                result.add(accessory);
-            } else if (type.equalsIgnoreCase("MEMORY") && accessory instanceof Memory) {
-                result.add(accessory);
-            }
+        if (type == null || type.trim().isEmpty()) {
+            return Collections.emptyList();
         }
-        return result;
+
+        synchronized (accessories) {
+            return accessories.stream()
+                    .filter(Objects::nonNull)
+                    .filter(a -> matchesType(a, type.trim()))
+                    .collect(Collectors.toList());
+        }
+    }
+
+    private boolean matchesType(Accessory accessory, String type) {
+        if ("CONTROLLER".equalsIgnoreCase(type)) {
+            return accessory instanceof Controller;
+        } else if ("CABLE".equalsIgnoreCase(type)) {
+            return accessory instanceof Cable;
+        } else if ("MEMORY".equalsIgnoreCase(type)) {
+            return accessory instanceof Memory;
+        }
+        return false;
     }
 
     /**
-     * Finds the accessories compatible with a given console. Only
-     * accessories that implement ConsoleCompatible (Controller and
-     * Memory) are considered; a Cable never matches.
-     *
-     * @param consoleId the id of the console to check
-     * @return the list of compatible accessories
+     * Finds the accessories compatible with a given console.
      */
     public List<Accessory> findAccessoriesCompatibleWith(String consoleId) {
-        List<Accessory> result = new ArrayList<>();
-        for (Accessory accessory : accessories) {
-            if (accessory instanceof ConsoleCompatible) {
-                ConsoleCompatible compatible = (ConsoleCompatible) accessory;
-                if (compatible.isCompatibleWith(consoleId)) {
-                    result.add(accessory);
-                }
-            }
+        if (consoleId == null || consoleId.trim().isEmpty()) {
+            return Collections.emptyList();
         }
-        return result;
+
+        synchronized (accessories) {
+            return accessories.stream()
+                    .filter(Objects::nonNull)
+                    .filter(ConsoleCompatible.class::isInstance)
+                    .map(ConsoleCompatible.class::cast)
+                    .filter(c -> c.isCompatibleWith(consoleId))
+                    .map(c -> (Accessory) c)
+                    .collect(Collectors.toList());
+        }
     }
 
     /**
-     * Finds a single accessory by its id.
-     *
-     * @param id the id of the accessory to find
-     * @return the matching accessory
-     * @throws IllegalArgumentException if no accessory with that id exists
+     * Finds a single accessory by its ID.
      */
     public Accessory findById(String id) {
-        for (Accessory accessory : accessories) {
-            if (accessory.getId().equals(id)) {
-                return accessory;
-            }
+        if (id == null || id.trim().isEmpty()) {
+            throw new IllegalArgumentException("Accessory ID cannot be null or empty.");
         }
-        throw new IllegalArgumentException("Unknown accessory id: " + id);
+
+        synchronized (accessories) {
+            return accessories.stream()
+                    .filter(Objects::nonNull)
+                    .filter(a -> a.getId() != null && a.getId().equalsIgnoreCase(id.trim()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown accessory ID: " + id));
+        }
     }
 
     public void restoreStock(String accessoryId, int quantity) {
         if (quantity < 0) {
-            throw new IllegalArgumentException("La cantidad a restaurar no puede ser negativa");
+            throw new IllegalArgumentException("Restoration quantity cannot be negative.");
         }
-        for (Accessory accessory : accessories) {
-            if (accessory.getId().equals(accessoryId)) {
-                accessory.increaseStock(quantity);
-                repository.saveAll(accessories);
-                return;
-            }
+        synchronized (accessories) {
+            Accessory accessory = findById(accessoryId);
+            accessory.increaseStock(quantity);
+            repository.saveAll(new ArrayList<>(accessories));
         }
-        throw new IllegalArgumentException("No existe un accesorio con el id: " + accessoryId);
-    }
-    
-    /**
-     * Reduces the stock of a specific accessory, identified by its id,
-     * and saves the updated inventory to the file.
-     *
-     * @param accessoryId the id of the accessory to update
-     * @param quantity the quantity to subtract from the accessory's stock
-     * @throws IllegalArgumentException if no accessory with that id exists,
-     *                                  or if the quantity is negative
-     */
-    public void updateStock(String accessoryId, int quantity) {
-        if (quantity < 0) {
-            throw new IllegalArgumentException("Quantity cannot be negative");
-        }
-        for (Accessory accessory : accessories) {
-            if (accessory.getId().equals(accessoryId)) {
-                accessory.reduceStock(quantity);
-                repository.saveAll(accessories);
-                return;
-            }
-        }
-        throw new IllegalArgumentException("Unknown accessory id: " + accessoryId);
     }
 
-    /**
-     * Validates that a price and stock value are not negative before
-     * creating a new accessory.
-     *
-     * @param price the price to validate
-     * @param stock the stock quantity to validate
-     * @throws IllegalArgumentException if price or stock is negative
-     */
-    private void validateBasicData(double price, int stock) {
-        if (price < 0) {
-            throw new IllegalArgumentException("Price cannot be negative");
+    public void updateStock(String accessoryId, int quantity) {
+        if (quantity < 0) {
+            throw new IllegalArgumentException("Quantity cannot be negative.");
         }
-        if (stock < 0) {
-            throw new IllegalArgumentException("Stock cannot be negative");
+        synchronized (accessories) {
+            Accessory accessory = findById(accessoryId);
+            accessory.reduceStock(quantity);
+            repository.saveAll(new ArrayList<>(accessories));
         }
     }
 }
