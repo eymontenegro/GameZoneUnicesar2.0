@@ -1,6 +1,10 @@
 package com.gamezone.service;
 
+import com.gamezone.exceptions.BusinessRuleException;
+import com.gamezone.exceptions.InvalidDataException;
+import com.gamezone.exceptions.ResourceNotFoundException;
 import com.gamezone.persistence.PersonRepository;
+import com.gamezone.validation.PersonValidator;
 import com.gamezone.model.Client;
 import com.gamezone.model.Seller;
 
@@ -35,7 +39,7 @@ public class PersonService {
      */
     public PersonService(PersonRepository repository) {
         if (repository == null) {
-            throw new IllegalArgumentException("El repositorio no puede ser nulo.");
+            throw new InvalidDataException("repositorio", "no puede ser nulo");
         }
         this.repository = repository;
         List<Client> loadedClients = repository.loadClients();
@@ -46,20 +50,17 @@ public class PersonService {
 
     /**
      * Validates client registration parameters and checks for existing duplicates.
+     *
+     * @param id    the client's identification
+     * @param name  the client's full name
+     * @param phone the client's phone number
+     * @param email the client's email
+     * @throws InvalidDataException  if a required field is empty or the email is malformed
+     * @throws BusinessRuleException if a client with the same ID already exists
      */
     private void validateClientData(String id, String name, String phone, String email) {
-        if (id == null || id.trim().isEmpty()) {
-            throw new IllegalArgumentException("El ID del cliente no puede estar vacío.");
-        }
-        if (existsClientById(id)) {
-            throw new IllegalArgumentException("Ya existe un cliente registrado con el ID: " + id);
-        }
-        if (name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException("El nombre del cliente no puede estar vacío.");
-        }
-        if (email == null || email.trim().isEmpty()) {
-            throw new IllegalArgumentException("El correo electrónico no puede estar vacío.");
-        }
+        PersonValidator.validatePersonData(id, name, email, phone);
+        PersonValidator.validateUniquePerson(clients, id);
     }
 
     /**
@@ -113,18 +114,22 @@ public class PersonService {
      *
      * @param id the id of the client to find
      * @return the client with that id
-     * @throws IllegalArgumentException if no client with that id exists
+     * @throws InvalidDataException      if id is null
+     * @throws ResourceNotFoundException if no client with that id exists
      */
     public Client findClientById(String id) {
         if (id == null) {
-            throw new IllegalArgumentException("El ID del cliente no puede ser nulo.");
+            throw new InvalidDataException("identificador del cliente", "no puede ser nulo");
         }
+        Client found = null;
         for (Client client : clients) {
             if (client != null && id.equalsIgnoreCase(client.getId())) {
-                return client;
+                found = client;
+                break;
             }
         }
-        throw new IllegalArgumentException("No existe un cliente con el id: " + id);
+        PersonValidator.validatePersonExists(found, id);
+        return found;
     }
 
     /**
@@ -132,18 +137,22 @@ public class PersonService {
      *
      * @param id the id of the seller to find
      * @return the seller with that id
-     * @throws IllegalArgumentException if no seller with that id exists
+     * @throws InvalidDataException      if id is null
+     * @throws ResourceNotFoundException if no seller with that id exists
      */
     public Seller findSellerById(String id) {
         if (id == null) {
-            throw new IllegalArgumentException("El ID del vendedor no puede ser nulo.");
+            throw new InvalidDataException("identificador del vendedor", "no puede ser nulo");
         }
+        Seller found = null;
         for (Seller seller : sellers) {
             if (seller != null && id.equalsIgnoreCase(seller.getId())) {
-                return seller;
+                found = seller;
+                break;
             }
         }
-        throw new IllegalArgumentException("No existe un vendedor con el id: " + id);
+        PersonValidator.validatePersonExists(found, id);
+        return found;
     }
 
     /**
@@ -152,10 +161,12 @@ public class PersonService {
      *
      * @param clientId the id of the client who made the purchase
      * @param saleId the id of the sale to register
+     * @throws InvalidDataException      if saleId is null or empty
+     * @throws ResourceNotFoundException if the client does not exist
      */
     public void registerPurchase(String clientId, String saleId) {
         if (saleId == null || saleId.trim().isEmpty()) {
-            throw new IllegalArgumentException("El ID de la venta no puede estar vacío.");
+            throw new InvalidDataException("identificador de la venta", "no puede ser nulo ni vacío");
         }
         Client client = findClientById(clientId);
         client.addPurchase(saleId);
