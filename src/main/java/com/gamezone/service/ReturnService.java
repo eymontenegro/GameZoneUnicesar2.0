@@ -1,5 +1,6 @@
 package com.gamezone.service;
 
+import com.gamezone.exceptions.ResourceNotFoundException;
 import com.gamezone.model.Product;
 import com.gamezone.model.Return;
 import com.gamezone.model.Sale;
@@ -47,7 +48,7 @@ public class ReturnService {
         }
         try {
             return saleService.findById(saleId);
-        } catch (IllegalArgumentException e) {
+        } catch (ResourceNotFoundException e) {
             throw new IllegalArgumentException("The specified sale does not exist: " + saleId, e);
         }
     }
