@@ -1,5 +1,6 @@
 package com.gamezone.service;
 
+import com.gamezone.exceptions.InvalidDataException;
 import com.gamezone.model.BasicWarranty;
 import com.gamezone.model.ExtendedWarranty;
 import com.gamezone.model.Product;
@@ -11,6 +12,7 @@ import com.gamezone.persistence.ProductRepository;
 import com.gamezone.persistence.PromotionRepository;
 import com.gamezone.persistence.SaleRepository;
 import com.gamezone.persistence.WarrantyRepository;
+import com.gamezone.validation.WarrantyValidator;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -59,17 +61,11 @@ public class WarrantyService {
 
     /**
      * Validates required entities before creating any warranty.
+     *
+     * @throws InvalidDataException if the product, the sale or the start date is invalid
      */
     private void validateWarrantyCreation(Product product, Sale sale, LocalDate startDate) {
-        if (product == null || product.getId() == null) {
-            throw new IllegalArgumentException("El producto cubierto no puede ser nulo o carecer de ID.");
-        }
-        if (sale == null || sale.getId() == null) {
-            throw new IllegalArgumentException("La venta asociada no puede ser nula o carecer de ID.");
-        }
-        if (startDate == null) {
-            throw new IllegalArgumentException("La fecha de inicio de la garantía no puede ser nula.");
-        }
+        WarrantyValidator.validateWarrantyData(product, sale, startDate);
     }
 
     public BasicWarranty assignBasicWarranty(Product product, Sale sale, LocalDate startDate) {
@@ -139,9 +135,7 @@ public class WarrantyService {
     }
 
     public List<Warranty> listWarrantiesExpiringSoon(int daysAhead) {
-        if (daysAhead < 0) {
-            throw new IllegalArgumentException("El número de días a consultar no puede ser negativo.");
-        }
+        WarrantyValidator.validateDaysAhead(daysAhead);
         LocalDate today = LocalDate.now();
         LocalDate limit = today.plusDays(daysAhead);
 

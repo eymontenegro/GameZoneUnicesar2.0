@@ -1,6 +1,10 @@
 package com.gamezone.service;
 
+import com.gamezone.exceptions.BusinessRuleException;
+import com.gamezone.exceptions.InvalidDataException;
+import com.gamezone.exceptions.ResourceNotFoundException;
 import com.gamezone.persistence.ProductRepository;
+import com.gamezone.validation.ProductValidator;
 import com.gamezone.model.Product;
 import com.gamezone.model.VideoGame;
 import com.gamezone.model.Console;
@@ -33,7 +37,7 @@ public class ProductService {
      */
     public ProductService(ProductRepository repository) {
         if (repository == null) {
-            throw new IllegalArgumentException("El repositorio de productos no puede ser nulo.");
+            throw new InvalidDataException("repositorio", "no puede ser nulo");
         }
         this.repository = repository;
         List<Product> loadedProducts = repository.load();
@@ -42,22 +46,18 @@ public class ProductService {
 
     /**
      * Validates basic product properties and ensures ID uniqueness.
+     *
+     * @param id    the product identifier
+     * @param title the product title
+     * @param price the product price
+     * @param stock the initial stock
+     * @throws InvalidDataException  if any field is invalid
+     * @throws BusinessRuleException if a product with the same ID already exists
      */
     private void validateBasicData(String id, String title, double price, int stock) {
-        if (id == null || id.trim().isEmpty()) {
-            throw new IllegalArgumentException("El ID del producto no puede estar vacío.");
-        }
+        ProductValidator.validateProductData(id, title, price, stock);
         if (existsId(id)) {
-            throw new IllegalArgumentException("Ya existe un producto con el ID: " + id);
-        }
-        if (title == null || title.trim().isEmpty()) {
-            throw new IllegalArgumentException("El título del producto no puede estar vacío.");
-        }
-        if (price < 0) {
-            throw new IllegalArgumentException("El precio del producto no puede ser negativo.");
-        }
-        if (stock < 0) {
-            throw new IllegalArgumentException("El stock inicial no puede ser negativo.");
+            throw new BusinessRuleException("Ya existe un producto con el ID: " + id);
         }
     }
 
@@ -93,7 +93,7 @@ public class ProductService {
                                    String platform, String genre, String ageRating) {
         validateBasicData(id, title, price, stock);
         if (platform == null || platform.trim().isEmpty()) {
-            throw new IllegalArgumentException("La plataforma del videojuego no puede estar vacía.");
+            throw new InvalidDataException("plataforma", "no puede estar vacía");
         }
         VideoGame newVideoGame = new VideoGame(platform, genre, ageRating, id, title, price, stock);
         products.add(newVideoGame);
@@ -116,7 +116,7 @@ public class ProductService {
                                 String brand, String model, String generation) {
         validateBasicData(id, title, price, stock);
         if (brand == null || brand.trim().isEmpty()) {
-            throw new IllegalArgumentException("La marca de la consola no puede estar vacía.");
+            throw new InvalidDataException("marca", "no puede estar vacía");
         }
         Console newConsole = new Console(brand, model, generation, id, title, price, stock);
         products.add(newConsole);
@@ -167,18 +167,22 @@ public class ProductService {
      *
      * @param id the id of the product to find
      * @return the matching product
-     * @throws IllegalArgumentException if no product with that id exists or if id is null
+     * @throws InvalidDataException      if id is null
+     * @throws ResourceNotFoundException if no product with that id exists
      */
     public Product findById(String id) {
         if (id == null) {
-            throw new IllegalArgumentException("El ID del producto no puede ser nulo.");
+            throw new InvalidDataException("identificador", "no puede ser nulo");
         }
+        Product found = null;
         for (Product product : products) {
             if (product != null && id.equalsIgnoreCase(product.getId())) {
-                return product;
+                found = product;
+                break;
             }
         }
-        throw new IllegalArgumentException("Unknown product id : " + id);
+        ProductValidator.validateProductExists(found, id);
+        return found;
     }
 
     /**
@@ -187,11 +191,12 @@ public class ProductService {
      *
      * @param productId the id of the product to update
      * @param quantity the quantity to subtract from the product's stock
-     * @throws IllegalArgumentException if no product with that id exists or quantity is negative
+     * @throws InvalidDataException      if quantity is negative
+     * @throws ResourceNotFoundException if no product with that id exists
      */
     public void updateStock(String productId, int quantity) {
         if (quantity < 0) {
-            throw new IllegalArgumentException("Quantity cannot be negative");
+            throw new InvalidDataException("cantidad", "no puede ser negativa");
         }
         Product product = findById(productId);
         product.reduceStock(quantity);
@@ -205,11 +210,12 @@ public class ProductService {
      *
      * @param productId the id of the product to update
      * @param quantity the quantity to add back to the product's stock
-     * @throws IllegalArgumentException if no product with that id exists, or if quantity is negative
+     * @throws InvalidDataException      if quantity is negative
+     * @throws ResourceNotFoundException if no product with that id exists
      */
     public void restoreStock(String productId, int quantity) {
         if (quantity < 0) {
-            throw new IllegalArgumentException("Quantity cannot be negative");
+            throw new InvalidDataException("cantidad", "no puede ser negativa");
         }
         Product product = findById(productId);
         product.increaseStock(quantity);
