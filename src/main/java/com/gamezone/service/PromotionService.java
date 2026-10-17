@@ -1,11 +1,15 @@
 package com.gamezone.service;
 
+import com.gamezone.exceptions.BusinessRuleException;
+import com.gamezone.exceptions.InvalidDataException;
+import com.gamezone.exceptions.ResourceNotFoundException;
 import com.gamezone.model.BulkPurchaseDiscount;
 import com.gamezone.model.CategoryDiscount;
 import com.gamezone.model.PercentageDiscount;
 import com.gamezone.model.Promotion;
 import com.gamezone.model.Sale;
 import com.gamezone.persistence.PromotionRepository;
+import com.gamezone.validation.PromotionValidator;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -38,24 +42,16 @@ public class PromotionService {
         this.promotions = Collections.synchronizedList(loadedPromotions != null ? new ArrayList<>(loadedPromotions) : new ArrayList<>());
     }
 
+    /**
+     * Validates the data shared by every promotion and checks for duplicates.
+     *
+     * @throws InvalidDataException  if any field is invalid
+     * @throws BusinessRuleException if a promotion with the same ID already exists
+     */
     private void validateCommonPromotionData(String id, String name, LocalDate startDate, LocalDate endDate, double percentage) {
-        if (id == null || id.trim().isEmpty()) {
-            throw new IllegalArgumentException("Promotion ID cannot be empty.");
-        }
+        PromotionValidator.validatePromotionData(id, name, startDate, endDate, percentage);
         if (existsId(id)) {
-            throw new IllegalArgumentException("A promotion already exists with ID: " + id);
-        }
-        if (name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException("Promotion name cannot be empty.");
-        }
-        if (startDate == null || endDate == null) {
-            throw new IllegalArgumentException("Start date and end date cannot be null.");
-        }
-        if (startDate.isAfter(endDate)) {
-            throw new IllegalArgumentException("Start date cannot be after end date.");
-        }
-        if (percentage <= 0 || percentage > 100) {
-            throw new IllegalArgumentException("Discount percentage must be greater than 0 and less than or equal to 100.");
+            throw new BusinessRuleException("Ya existe una promoción con el ID: " + id);
         }
     }
 
@@ -76,9 +72,7 @@ public class PromotionService {
     public void registerCategoryDiscount(String id, String name, LocalDate startDate, LocalDate endDate,
                                          double percentage, String targetCategory) {
         validateCommonPromotionData(id, name, startDate, endDate, percentage);
-        if (targetCategory == null || targetCategory.trim().isEmpty()) {
-            throw new IllegalArgumentException("Target category cannot be empty.");
-        }
+        PromotionValidator.validateCategoryData(targetCategory);
         CategoryDiscount newPromotion = new CategoryDiscount(id, name, startDate, endDate, percentage, targetCategory);
         savePromotion(newPromotion);
     }
@@ -86,9 +80,7 @@ public class PromotionService {
     public void registerBulkPurchaseDiscount(String id, String name, LocalDate startDate, LocalDate endDate,
                                              int minimumQuantity, double percentage) {
         validateCommonPromotionData(id, name, startDate, endDate, percentage);
-        if (minimumQuantity <= 0) {
-            throw new IllegalArgumentException("Minimum quantity for bulk purchase must be greater than 0.");
-        }
+        PromotionValidator.validateBulkPurchaseData(minimumQuantity);
         BulkPurchaseDiscount newPromotion = new BulkPurchaseDiscount(id, name, startDate, endDate, minimumQuantity, percentage);
         savePromotion(newPromotion);
     }
@@ -122,17 +114,28 @@ public class PromotionService {
         }
     }
 
+    /**
+     * Finds a single promotion by its ID.
+     *
+     * @param id the id of the promotion to find
+     * @return the matching promotion
+     * @throws InvalidDataException      if id is null or empty
+     * @throws ResourceNotFoundException if no promotion with that id exists
+     */
     public Promotion findById(String id) {
         if (id == null || id.trim().isEmpty()) {
-            throw new IllegalArgumentException("Promotion ID cannot be null or empty.");
+            throw new InvalidDataException("identificador de la promoción", "no puede ser nulo ni vacío");
         }
+        Promotion found;
         synchronized (promotions) {
-            return promotions.stream()
+            found = promotions.stream()
                     .filter(Objects::nonNull)
                     .filter(p -> p.getId() != null && p.getId().equalsIgnoreCase(id.trim()))
                     .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("Unknown promotion ID: " + id));
+                    .orElse(null);
         }
+        PromotionValidator.validatePromotionExists(found, id);
+        return found;
     }
 
     public Promotion findBestPromotionFor(Sale sale) {
