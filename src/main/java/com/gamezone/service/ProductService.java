@@ -1,6 +1,9 @@
 package com.gamezone.service;
 
+import com.gamezone.exceptions.BusinessRuleException;
+import com.gamezone.exceptions.InvalidDataException;
 import com.gamezone.persistence.ProductRepository;
+import com.gamezone.validation.ProductValidator;
 import com.gamezone.model.Product;
 import com.gamezone.model.VideoGame;
 import com.gamezone.model.Console;
@@ -33,7 +36,7 @@ public class ProductService {
      */
     public ProductService(ProductRepository repository) {
         if (repository == null) {
-            throw new IllegalArgumentException("El repositorio de productos no puede ser nulo.");
+            throw new InvalidDataException("repositorio", "no puede ser nulo");
         }
         this.repository = repository;
         List<Product> loadedProducts = repository.load();
@@ -42,22 +45,18 @@ public class ProductService {
 
     /**
      * Validates basic product properties and ensures ID uniqueness.
+     *
+     * @param id    the product identifier
+     * @param title the product title
+     * @param price the product price
+     * @param stock the initial stock
+     * @throws InvalidDataException  if any field is invalid
+     * @throws BusinessRuleException if a product with the same ID already exists
      */
     private void validateBasicData(String id, String title, double price, int stock) {
-        if (id == null || id.trim().isEmpty()) {
-            throw new IllegalArgumentException("El ID del producto no puede estar vacío.");
-        }
+        ProductValidator.validateProductData(id, title, price, stock);
         if (existsId(id)) {
-            throw new IllegalArgumentException("Ya existe un producto con el ID: " + id);
-        }
-        if (title == null || title.trim().isEmpty()) {
-            throw new IllegalArgumentException("El título del producto no puede estar vacío.");
-        }
-        if (price < 0) {
-            throw new IllegalArgumentException("El precio del producto no puede ser negativo.");
-        }
-        if (stock < 0) {
-            throw new IllegalArgumentException("El stock inicial no puede ser negativo.");
+            throw new BusinessRuleException("Ya existe un producto con el ID: " + id);
         }
     }
 
@@ -93,7 +92,7 @@ public class ProductService {
                                    String platform, String genre, String ageRating) {
         validateBasicData(id, title, price, stock);
         if (platform == null || platform.trim().isEmpty()) {
-            throw new IllegalArgumentException("La plataforma del videojuego no puede estar vacía.");
+            throw new InvalidDataException("plataforma", "no puede estar vacía");
         }
         VideoGame newVideoGame = new VideoGame(platform, genre, ageRating, id, title, price, stock);
         products.add(newVideoGame);
@@ -116,7 +115,7 @@ public class ProductService {
                                 String brand, String model, String generation) {
         validateBasicData(id, title, price, stock);
         if (brand == null || brand.trim().isEmpty()) {
-            throw new IllegalArgumentException("La marca de la consola no puede estar vacía.");
+            throw new InvalidDataException("marca", "no puede estar vacía");
         }
         Console newConsole = new Console(brand, model, generation, id, title, price, stock);
         products.add(newConsole);
