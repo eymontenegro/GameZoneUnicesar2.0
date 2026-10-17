@@ -27,7 +27,7 @@ public final class ProductValidator {
      *
      * @param id    product identifier, must not be null or blank
      * @param title product title, must not be null or blank
-     * @param price product price, must be greater than zero
+     * @param price product price, must not be negative
      * @param stock product stock, must not be negative
      * @throws InvalidDataException if any value breaks its rule
      */
@@ -38,8 +38,8 @@ public final class ProductValidator {
         if (title == null || title.trim().isEmpty()) {
             throw new InvalidDataException("título", "no puede ser nulo ni vacío");
         }
-        if (Double.isNaN(price) || price <= 0) {
-            throw new InvalidDataException("precio", "debe ser mayor que cero");
+         if (Double.isNaN(price) || price < 0) {
+            throw new InvalidDataException("precio", "no puede ser negativo");
         }
         if (stock < 0) {
             throw new InvalidDataException("stock", "no puede ser negativo");
