@@ -1,5 +1,8 @@
 package com.gamezone.service;
 
+import com.gamezone.exceptions.GameZoneException;
+import com.gamezone.exceptions.InvalidDataException;
+import com.gamezone.exceptions.ResourceNotFoundException;
 import com.gamezone.model.Accessory;
 import com.gamezone.model.Client;
 import com.gamezone.model.Console;
@@ -10,13 +13,14 @@ import com.gamezone.model.SaleDetail;
 import com.gamezone.model.Seller;
 import com.gamezone.model.Warranty;
 import com.gamezone.persistence.SaleRepository;
+import com.gamezone.validation.ProductValidator;
+import com.gamezone.validation.SaleValidator;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Applies the business rules for processing transactions/sales in GameZone.
@@ -58,7 +62,7 @@ public class SaleService {
 
     public Product findProductOrAccessoryById(String productId) {
         if (productId == null || productId.trim().isEmpty()) {
-            throw new IllegalArgumentException("Product ID cannot be null or empty.");
+            throw new InvalidDataException("identificador del producto", "no puede ser nulo ni vacío");
         }
 
         return productService.listAll().stream()
@@ -68,32 +72,21 @@ public class SaleService {
                 .orElseGet(() -> accessoryService.listAllAccessories().stream()
                         .filter(a -> a != null && productId.equals(a.getId()))
                         .findFirst()
-                        .orElseThrow(() -> new IllegalArgumentException("No product or accessory was found with ID: " + productId))
+                        .orElseThrow(() -> new ResourceNotFoundException("producto o accesorio", productId))
                 );
     }
 
     public Sale processSale(String saleId, String clientId, String sellerId, List<SaleDetail> items,
                             List<String> productIdsWithExtendedWarranty) {
-        if (items == null || items.isEmpty()) {
-            throw new IllegalArgumentException("The sale must contain at least one product.");
-        }
+        Client client = personService.findClientById(clientId);
+        Seller seller = personService.findSellerById(sellerId);
 
-        Client client = Optional.ofNullable(personService.findClientById(clientId))
-                .orElseThrow(() -> new IllegalArgumentException("No client found with ID: " + clientId));
-
-        Seller seller = Optional.ofNullable(personService.findSellerById(sellerId))
-                .orElseThrow(() -> new IllegalArgumentException("No seller found with ID: " + sellerId));
+        SaleValidator.validateSaleData(client, seller, items);
+        SaleValidator.validateSaleDetails(items);
 
         // 1. Validate stock
         for (SaleDetail detail : items) {
-            if (detail == null || detail.getProduct() == null) {
-                throw new IllegalArgumentException("Sale details contain invalid or null product entries.");
-            }
-            Product product = detail.getProduct();
-            if (product.getStock() < detail.getQuantity()) {
-                throw new IllegalStateException("Insufficient stock for product: " + product.getTitle()
-                        + " (Available: " + product.getStock() + ", Requested: " + detail.getQuantity() + ")");
-            }
+            ProductValidator.validateStockAvailability(detail.getProduct(), detail.getQuantity());
         }
 
         // 2. Build Sale
@@ -147,6 +140,9 @@ public class SaleService {
             for (SaleDetail detail : processedDetails) {
                 restoreStock(detail.getProduct(), detail.getQuantity());
             }
+            if (ex instanceof GameZoneException) {
+                throw (GameZoneException) ex;
+            }
             throw new RuntimeException("Failed to process sale ID " + saleId + ". Transaction rolled back.", ex);
         }
     }
@@ -170,14 +166,17 @@ public class SaleService {
 
     public Sale findById(String saleId) {
         if (saleId == null || saleId.trim().isEmpty()) {
-            throw new IllegalArgumentException("Sale ID cannot be null or empty.");
+            throw new InvalidDataException("identificador de la venta", "no puede ser nulo ni vacío");
         }
 
+        Sale found;
         synchronized (sales) {
-            return sales.stream()
+            found = sales.stream()
                     .filter(s -> s != null && saleId.equals(s.getId()))
                     .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("No registered sale exists with ID: " + saleId));
+                    .orElse(null);
         }
+        SaleValidator.validateSaleExists(found, saleId);
+        return found;
     }
 }
