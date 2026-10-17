@@ -1,0 +1,91 @@
+package com.gamezone.model;
+
+import java.time.LocalDate;
+
+/**
+ * Concrete promotion that applies a percentage discount only to items matching a target category.
+ */
+public class CategoryDiscount extends Promotion {
+
+    private double percentage;
+    private String targetCategory;
+
+    /**
+     * Constructs a new CategoryDiscount promotion.
+     *
+     * @param id             the promotion identifier
+     * @param name           the promotion name
+     * @param startDate      validity start date
+     * @param endDate        validity end date
+     * @param percentage     discount percentage between 0 and 100
+     * @param targetCategory target product category (e.g., "VIDEOGAME", "CONSOLE", "ACCESSORY")
+     */
+    public CategoryDiscount(String id, String name, LocalDate startDate, LocalDate endDate, double percentage, String targetCategory) {
+        super(id, name, startDate, endDate);
+        setPercentage(percentage);
+        setTargetCategory(targetCategory);
+    }
+
+    public double getPercentage() {
+        return percentage;
+    }
+
+    public void setPercentage(double percentage) {
+        if (percentage < 0.0 || percentage > 100.0) {
+            throw new IllegalArgumentException("El porcentaje de descuento debe estar entre 0 y 100.");
+        }
+        this.percentage = percentage;
+    }
+
+    public String getTargetCategory() {
+        return targetCategory;
+    }
+
+    public void setTargetCategory(String targetCategory) {
+        if (targetCategory == null || targetCategory.trim().isEmpty()) {
+            throw new IllegalArgumentException("La categoría objetivo no puede ser nula ni estar vacía.");
+        }
+        this.targetCategory = targetCategory;
+    }
+
+    @Override
+    public double calculateDiscount(Sale sale) {
+        if (sale == null || sale.getDetails() == null) {
+            return 0.0;
+        }
+
+        double applicableSubtotal = 0.0;
+        for (SaleDetail detail : sale.getDetails()) {
+            if (detail != null && detail.getProduct() != null) {
+                Product product = detail.getProduct();
+                if (matchesCategory(product, targetCategory)) {
+                    applicableSubtotal += detail.getSubtotal();
+                }
+            }
+        }
+        return applicableSubtotal * (this.percentage / 100.0);
+    }
+
+    /**
+     * Checks whether the given product belongs to the target category.
+     *
+     * @param product  the product to check
+     * @param category the target category ("VIDEOGAME", "CONSOLE", "ACCESSORY")
+     * @return true if the product matches the category
+     */
+    private boolean matchesCategory(Product product, String category) {
+        if (product == null || category == null) {
+            return false;
+        }
+
+        String cat = category.trim().toUpperCase();
+        if (cat.equals("VIDEOGAME")) {
+            return product instanceof VideoGame;
+        } else if (cat.equals("CONSOLE")) {
+            return product instanceof Console;
+        } else if (cat.equals("ACCESSORY")) {
+            return product instanceof Accessory;
+        }
+        return false;
+    }
+}
