@@ -1,4 +1,3 @@
-```mermaid
 flowchart TD
     subgraph UI["ui"]
         Menu
@@ -23,6 +22,20 @@ flowchart TD
         SaleRepository
         ReturnRepository
         WarrantyRepository
+    end
+
+    subgraph VALIDATION["validation"]
+        ProductValidator
+        PersonValidator
+        SaleValidator
+    end
+
+    subgraph EXCEPTIONS["exceptions (transversal)"]
+        GameZoneException
+        ResourceNotFoundException
+        BusinessRuleException
+        InvalidDataException
+        PersistenceException
     end
 
     subgraph MODEL["model"]
@@ -50,7 +63,12 @@ flowchart TD
     end
 
     UI --> SERVICE
+    UI ..> EXCEPTIONS : catches
     SERVICE --> PERSISTENCE
     SERVICE --> MODEL
+    SERVICE --> VALIDATION
+    VALIDATION --> MODEL
+    VALIDATION ..> EXCEPTIONS : throws
+    SERVICE ..> EXCEPTIONS : throws
+    PERSISTENCE ..> EXCEPTIONS : wraps/throws
     PERSISTENCE --> MODEL
-```
