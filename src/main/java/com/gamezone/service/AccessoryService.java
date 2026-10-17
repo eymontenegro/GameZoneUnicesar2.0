@@ -1,11 +1,15 @@
 package com.gamezone.service;
 
+import com.gamezone.exceptions.BusinessRuleException;
+import com.gamezone.exceptions.InvalidDataException;
+import com.gamezone.exceptions.ResourceNotFoundException;
 import com.gamezone.model.Accessory;
 import com.gamezone.model.Cable;
 import com.gamezone.model.ConsoleCompatible;
 import com.gamezone.model.Controller;
 import com.gamezone.model.Memory;
 import com.gamezone.persistence.AccessoryRepository;
+import com.gamezone.validation.AccessoryValidator;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,22 +42,14 @@ public class AccessoryService {
 
     /**
      * Validates basic inputs (id, title, price, stock) and checks for duplicates.
+     *
+     * @throws InvalidDataException  if any field is invalid
+     * @throws BusinessRuleException if an accessory with the same ID already exists
      */
     private void validateBasicData(String id, String title, double price, int stock) {
-        if (id == null || id.trim().isEmpty()) {
-            throw new IllegalArgumentException("Accessory ID cannot be empty.");
-        }
+        AccessoryValidator.validateAccessoryData(id, title, price, stock);
         if (existsId(id)) {
-            throw new IllegalArgumentException("An accessory with ID already exists: " + id);
-        }
-        if (title == null || title.trim().isEmpty()) {
-            throw new IllegalArgumentException("Accessory title cannot be empty.");
-        }
-        if (price < 0) {
-            throw new IllegalArgumentException("Price cannot be negative.");
-        }
-        if (stock < 0) {
-            throw new IllegalArgumentException("Stock cannot be negative.");
+            throw new BusinessRuleException("Ya existe un accesorio con el ID: " + id);
         }
     }
 
@@ -71,9 +67,7 @@ public class AccessoryService {
     public void registerController(String id, String title, double price, int stock,
                                    String connectionType, List<String> compatibleConsoleIds) {
         validateBasicData(id, title, price, stock);
-        if (connectionType == null || connectionType.trim().isEmpty()) {
-            throw new IllegalArgumentException("Connection type cannot be empty.");
-        }
+        AccessoryValidator.validateControllerData(connectionType);
         Controller newController = new Controller(id, title, price, stock, connectionType, compatibleConsoleIds);
         saveAccessory(newController);
     }
@@ -81,12 +75,7 @@ public class AccessoryService {
     public void registerCable(String id, String title, double price, int stock,
                               double length, String connectorType) {
         validateBasicData(id, title, price, stock);
-        if (length <= 0) {
-            throw new IllegalArgumentException("Cable length must be greater than 0.");
-        }
-        if (connectorType == null || connectorType.trim().isEmpty()) {
-            throw new IllegalArgumentException("Connector type cannot be empty.");
-        }
+        AccessoryValidator.validateCableData(length, connectorType);
         Cable newCable = new Cable(id, title, price, stock, length, connectorType);
         saveAccessory(newCable);
     }
@@ -94,9 +83,7 @@ public class AccessoryService {
     public void registerMemory(String id, String title, double price, int stock,
                                int capacity, String type, List<String> compatibleConsoleIds) {
         validateBasicData(id, title, price, stock);
-        if (capacity <= 0) {
-            throw new IllegalArgumentException("Memory capacity must be greater than 0 GB.");
-        }
+        AccessoryValidator.validateMemoryData(capacity);
         Memory newMemory = new Memory(id, title, price, stock, capacity, type, compatibleConsoleIds);
         saveAccessory(newMemory);
     }
@@ -168,24 +155,32 @@ public class AccessoryService {
 
     /**
      * Finds a single accessory by its ID.
+     *
+     * @param id the id of the accessory to find
+     * @return the matching accessory
+     * @throws InvalidDataException      if id is null or empty
+     * @throws ResourceNotFoundException if no accessory with that id exists
      */
     public Accessory findById(String id) {
         if (id == null || id.trim().isEmpty()) {
-            throw new IllegalArgumentException("Accessory ID cannot be null or empty.");
+            throw new InvalidDataException("identificador del accesorio", "no puede ser nulo ni vacío");
         }
 
+        Accessory found;
         synchronized (accessories) {
-            return accessories.stream()
+            found = accessories.stream()
                     .filter(Objects::nonNull)
                     .filter(a -> a.getId() != null && a.getId().equalsIgnoreCase(id.trim()))
                     .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("Unknown accessory ID: " + id));
+                    .orElse(null);
         }
+        AccessoryValidator.validateAccessoryExists(found, id);
+        return found;
     }
 
     public void restoreStock(String accessoryId, int quantity) {
         if (quantity < 0) {
-            throw new IllegalArgumentException("Restoration quantity cannot be negative.");
+            throw new InvalidDataException("cantidad", "no puede ser negativa");
         }
         synchronized (accessories) {
             Accessory accessory = findById(accessoryId);
@@ -196,7 +191,7 @@ public class AccessoryService {
 
     public void updateStock(String accessoryId, int quantity) {
         if (quantity < 0) {
-            throw new IllegalArgumentException("Quantity cannot be negative.");
+            throw new InvalidDataException("cantidad", "no puede ser negativa");
         }
         synchronized (accessories) {
             Accessory accessory = findById(accessoryId);
