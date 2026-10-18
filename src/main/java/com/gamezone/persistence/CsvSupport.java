@@ -1,10 +1,10 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package com.gamezone.persistence;
 
 import com.gamezone.exceptions.PersistenceException;
+
+import java.io.File;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 
 /**
  * Package-private helpers shared by the repositories to validate values
@@ -110,6 +110,102 @@ final class CsvSupport {
     static void requireNotBlank(String value, String fieldName, String filePath, int lineNumber) {
         if (value.isBlank()) {
             throw corruptLine(filePath, lineNumber, "el campo '" + fieldName + "' esta vacio", null);
+        }
+    }
+
+    /**
+     * Checks that a parsed line has a number of columns inside an allowed range.
+     *
+     * @param parts the columns of the line
+     * @param min the minimum number of columns
+     * @param max the maximum number of columns
+     * @param filePath the file being read
+     * @param lineNumber the 1-based line number
+     * @throws PersistenceException if the number of columns is out of range
+     */
+    static void requireColumnsBetween(String[] parts, int min, int max, String filePath, int lineNumber) {
+        if (parts.length < min || parts.length > max) {
+            String expected = (min == max) ? String.valueOf(min) : min + " a " + max;
+            throw corruptLine(filePath, lineNumber,
+                    "se esperaban " + expected + " columnas pero hay " + parts.length, null);
+        }
+    }
+
+    /**
+     * Parses a finite decimal number read from a file.
+     *
+     * @param text the raw column value
+     * @param fieldName the field name, used in the error message
+     * @param filePath the file being read
+     * @param lineNumber the 1-based line number
+     * @return the parsed number
+     * @throws PersistenceException if the text is not a finite number
+     */
+    static double parseDouble(String text, String fieldName, String filePath, int lineNumber) {
+        double value;
+        try {
+            value = Double.parseDouble(text.trim());
+        } catch (NumberFormatException e) {
+            throw corruptLine(filePath, lineNumber,
+                    "el campo '" + fieldName + "' no es un numero valido: '" + text + "'", e);
+        }
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            throw corruptLine(filePath, lineNumber,
+                    "el campo '" + fieldName + "' debe ser un numero finito: '" + text + "'", null);
+        }
+        return value;
+    }
+
+    /**
+     * Parses an integer read from a file.
+     *
+     * @param text the raw column value
+     * @param fieldName the field name, used in the error message
+     * @param filePath the file being read
+     * @param lineNumber the 1-based line number
+     * @return the parsed integer
+     * @throws PersistenceException if the text is not an integer
+     */
+    static int parseInt(String text, String fieldName, String filePath, int lineNumber) {
+        try {
+            return Integer.parseInt(text.trim());
+        } catch (NumberFormatException e) {
+            throw corruptLine(filePath, lineNumber,
+                    "el campo '" + fieldName + "' no es un entero valido: '" + text + "'", e);
+        }
+    }
+
+    /**
+     * Parses an ISO date (yyyy-MM-dd) read from a file.
+     *
+     * @param text the raw column value
+     * @param fieldName the field name, used in the error message
+     * @param filePath the file being read
+     * @param lineNumber the 1-based line number
+     * @return the parsed date
+     * @throws PersistenceException if the text is not a valid date
+     */
+    static LocalDate parseDate(String text, String fieldName, String filePath, int lineNumber) {
+        try {
+            return LocalDate.parse(text.trim());
+        } catch (DateTimeParseException e) {
+            throw corruptLine(filePath, lineNumber,
+                    "el campo '" + fieldName + "' no es una fecha valida (yyyy-MM-dd): '" + text + "'", e);
+        }
+    }
+
+    /**
+     * Makes sure the folder that will contain a file exists.
+     *
+     * @param file the file that is about to be written
+     * @param what plural description of the data, used in the error message
+     * @throws PersistenceException if the folder cannot be created
+     */
+    static void ensureParentDirectory(File file, String what) {
+        File parent = file.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs() && !parent.exists()) {
+            throw new PersistenceException("No se pudo crear el directorio '" + parent.getPath()
+                    + "' para guardar " + what);
         }
     }
 }
