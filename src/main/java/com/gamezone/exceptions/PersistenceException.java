@@ -4,24 +4,34 @@
  */
 package com.gamezone.exceptions;
 
+
 /**
- * Thrown when reading or writing a file fails (corrupt file, permission denied,
- * full disk, and so on). It keeps the original cause to preserve traceability.
+ * Unchecked exception thrown by the persistence layer when a repository cannot
+ * read or write its data: a low-level {@link java.io.IOException}, or file
+ * content that is corrupt and cannot be converted into domain objects.
+ *
+ * <p>The message always describes the operation that failed (and, when
+ * available, the file and line involved), and the original error is kept as
+ * the cause so no stack trace is lost.</p>
  */
-public class PersistenceException extends GameZoneException {
-
-    private static final long serialVersionUID = 1L;
-
-    private static final String ERROR_CODE = "PERSISTENCE_ERROR";
+public class PersistenceException extends RuntimeException {
 
     /**
-     * Creates the exception keeping the original cause.
+     * Creates an exception with a descriptive message and no underlying cause.
      *
-     * @param message context of the failure (file and operation)
-     * @param cause   original exception, usually an {@link java.io.IOException}
+     * @param message description of what failed and where
+     */
+    public PersistenceException(String message) {
+        super(message);
+    }
+
+    /**
+     * Creates an exception with a descriptive message and the original cause.
+     *
+     * @param message description of what failed and where
+     * @param cause the original low-level error (for example an IOException)
      */
     public PersistenceException(String message, Throwable cause) {
-        super(message, ERROR_CODE);
-        initCause(cause);
+        super(message, cause);
     }
 }
