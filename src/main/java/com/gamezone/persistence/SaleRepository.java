@@ -1,5 +1,6 @@
 package com.gamezone.persistence;
 
+import com.gamezone.exceptions.PersistenceException;
 import com.gamezone.model.Client;
 import com.gamezone.model.Product;
 import com.gamezone.model.Promotion;
@@ -22,74 +23,133 @@ import java.util.Map;
 
 /**
  * Handles persistence operations for {@link Sale} objects to and from a CSV file.
+ *
+ * <p>Every low-level {@link IOException} is wrapped in a
+ * {@link PersistenceException}; corrupt file content (bad columns, numbers,
+ * dates, or references to a client, seller or product that no longer exists)
+ * is reported with the file name and line number instead of being skipped,
+ * so a damaged line is never silently lost when the file is saved again.</p>
  */
 public class SaleRepository {
 
-    private static final String FILE_PATH = "data/sales.csv";
+    private static final String DEFAULT_FILE = "data/sales.csv";
+    private static final int COLUMNS = 9;
+
+    private final String filePath;
+
+    /**
+     * Creates a repository that uses the default file {@code data/sales.csv}.
+     */
+    public SaleRepository() {
+        this(DEFAULT_FILE);
+    }
+
+    /**
+     * Creates a repository that uses the given file (useful for tests).
+     *
+     * @param filePath path of the CSV file
+     * @throws IllegalArgumentException if the path is null or blank
+     */
+    public SaleRepository(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("La ruta del archivo de ventas no puede estar vacia");
+        }
+        this.filePath = filePath;
+    }
 
     /**
      * Converts a single {@link Sale} object into a CSV-formatted string line.
      *
      * @param sale the sale instance to convert
      * @return a CSV-formatted representation of the sale
+     * @throws IllegalArgumentException if any value cannot be stored safely
      */
     private String saleToCsvLine(Sale sale) {
-        List<String> detailsFormatted = new ArrayList<>();
-        if (sale.getDetails() != null) {
-            for (SaleDetail detail : sale.getDetails()) {
-                if (detail != null && detail.getProduct() != null) {
-                    detailsFormatted.add(detail.getProduct().getId() + ":" 
-                            + detail.getQuantity() + ":" 
-                            + detail.getUnitPrice());
-                }
-            }
+        String saleId = CsvSupport.safe(sale.getId(), "id");
+        if (sale.getDate() == null) {
+            throw new IllegalArgumentException("La venta '" + saleId + "' no tiene fecha");
         }
-        String detailsData = String.join(";", detailsFormatted);
+        if (sale.getSeller() == null || sale.getClient() == null) {
+            throw new IllegalArgumentException("La venta '" + saleId + "' debe tener cliente y vendedor");
+        }
+        String sellerId = CsvSupport.safe(sale.getSeller().getId(), "sellerId");
+        String clientId = CsvSupport.safe(sale.getClient().getId(), "clientId");
+        String promotion = CsvSupport.safe(sale.getAppliedPromotionName(), "appliedPromotionName");
+        CsvSupport.requireValidPrice(sale.getDiscountAmount(), "discountAmount");
+        CsvSupport.requireValidPrice(sale.getAdditionalCosts(), "additionalCosts");
+        CsvSupport.requireValidPrice(sale.getTotal(), "total");
 
-        String sellerId = (sale.getSeller() != null) ? sale.getSeller().getId() : "";
-        String clientId = (sale.getClient() != null) ? sale.getClient().getId() : "";
+        List<SaleDetail> details = sale.getDetails();
+        if (details == null) {
+            throw new IllegalArgumentException("La venta '" + saleId + "' tiene una lista de detalles nula");
+        }
+        List<String> detailsFormatted = new ArrayList<>();
+        for (SaleDetail detail : details) {
+            if (detail == null || detail.getProduct() == null) {
+                throw new IllegalArgumentException("La venta '" + saleId + "' contiene un detalle sin producto");
+            }
+            CsvSupport.requireValidPrice(detail.getUnitPrice(), "unitPrice");
+            detailsFormatted.add(CsvSupport.safe(detail.getProduct().getId(), "productId", ":;") + ":"
+                    + detail.getQuantity() + ":"
+                    + detail.getUnitPrice());
+        }
 
-        return sale.getId() + "," 
-                + sale.getDate() + "," 
-                + sellerId + "," 
-                + clientId + "," 
-                + sale.getAppliedPromotionName() + "," 
-                + sale.getDiscountAmount() + "," 
-                + sale.getAdditionalCosts() + "," 
-                + sale.getTotal() + "," 
-                + detailsData;
+        return saleId + ","
+                + sale.getDate() + ","
+                + sellerId + ","
+                + clientId + ","
+                + promotion + ","
+                + sale.getDiscountAmount() + ","
+                + sale.getAdditionalCosts() + ","
+                + sale.getTotal() + ","
+                + String.join(";", detailsFormatted);
     }
 
     /**
      * Saves all sales from the provided list to the CSV file, overwriting existing content.
+     * All sales are validated and converted before the file is opened, so an
+     * invalid sale never leaves a truncated file behind.
      *
      * @param sales the list of {@link Sale} objects to persist
-     * @throws RuntimeException if an I/O error occurs during the writing process
+     * @throws IllegalArgumentException if the list or any sale is null, or has
+     *         values that cannot be stored
+     * @throws PersistenceException if an I/O error occurs while writing
      */
     public void saveAll(List<Sale> sales) {
-        File file = new File(FILE_PATH);
-        if (file.getParentFile() != null) {
-            file.getParentFile().mkdirs();
+        if (sales == null) {
+            throw new IllegalArgumentException("La lista de ventas no puede ser nula");
+        }
+        List<String> lines = new ArrayList<>();
+        for (Sale sale : sales) {
+            if (sale == null) {
+                throw new IllegalArgumentException("La lista de ventas contiene un elemento nulo");
+            }
+            lines.add(saleToCsvLine(sale));
+        }
+
+        File file = new File(filePath);
+        File parent = file.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs() && !parent.exists()) {
+            throw new PersistenceException("No se pudo crear el directorio '" + parent.getPath()
+                    + "' para guardar las ventas");
         }
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-            if (sales != null) {
-                for (Sale sale : sales) {
-                    if (sale != null) {
-                        writer.write(saleToCsvLine(sale));
-                        writer.newLine();
-                    }
-                }
+            for (String line : lines) {
+                writer.write(line);
+                writer.newLine();
             }
         } catch (IOException e) {
-            throw new RuntimeException("Error saving sales: " + e.getMessage(), e);
+            throw new PersistenceException("No se pudieron guardar " + lines.size()
+                    + " venta(s) en '" + filePath + "'", e);
         }
     }
 
     /**
-     * Loads and reconstructs all sales from the CSV file.
+     * Loads and reconstructs all sales from the CSV file. If the file does not
+     * exist yet (first run), returns an empty list. Blank lines are ignored.
      * <p>
-     * Converts the provided list domain models into internal lookup maps to quickly resolve 
+     * Converts the provided domain lists into internal lookup maps to quickly resolve
      * and bind associated {@link Client}, {@link Seller}, and {@link Product} references.
      * </p>
      *
@@ -99,7 +159,8 @@ public class SaleRepository {
      * @param accessories list of accessories
      * @param promotions  list of active/registered promotions
      * @return a reconstructed list of {@link Sale} objects
-     * @throws RuntimeException if an I/O error occurs during file reading
+     * @throws PersistenceException if an I/O error occurs while reading, or the
+     *         file contains a malformed line or a reference that cannot be resolved
      */
     public List<Sale> loadAll(List<Client> clients,
                               List<Seller> sellers,
@@ -108,13 +169,12 @@ public class SaleRepository {
                               List<? extends Promotion> promotions) {
 
         List<Sale> sales = new ArrayList<>();
-        File file = new File(FILE_PATH);
+        File file = new File(filePath);
 
         if (!file.exists()) {
             return sales;
         }
 
-        // 1. Map Clients by ID for O(1) lookup
         Map<String, Client> clientMap = new HashMap<>();
         if (clients != null) {
             for (Client c : clients) {
@@ -124,7 +184,6 @@ public class SaleRepository {
             }
         }
 
-        // 2. Map Sellers by ID for O(1) lookup
         Map<String, Seller> sellerMap = new HashMap<>();
         if (sellers != null) {
             for (Seller s : sellers) {
@@ -134,7 +193,6 @@ public class SaleRepository {
             }
         }
 
-        // 3. Map full catalog (Products & Accessories) by ID
         Map<String, Product> productMap = new HashMap<>();
         if (products != null) {
             for (Product p : products) {
@@ -151,67 +209,146 @@ public class SaleRepository {
             }
         }
 
-        // 4. Parse CSV file and reconstruct Sale instances
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
+            int lineNumber = 0;
             while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) {
+                lineNumber++;
+                if (line.isBlank()) {
                     continue;
                 }
-
-                String[] parts = line.split(",", -1);
-                if (parts.length >= 9) {
-                    try {
-                        String id = parts[0].trim();
-                        LocalDate date = LocalDate.parse(parts[1].trim());
-                        String sellerId = parts[2].trim();
-                        String clientId = parts[3].trim();
-                        String promoName = parts[4].trim();
-                        double discountAmount = Double.parseDouble(parts[5].trim());
-                        double additionalCosts = Double.parseDouble(parts[6].trim());
-                        double total = Double.parseDouble(parts[7].trim());
-                        String detailsData = parts[8].trim();
-
-                        Seller seller = sellerMap.get(sellerId);
-                        Client client = clientMap.get(clientId);
-
-                        if (seller != null && client != null) {
-                            Sale sale = new Sale(id, client, seller, date);
-                            
-                            sale.setAppliedPromotionName(promoName);
-                            sale.setDiscountAmount(discountAmount);
-                            sale.setAdditionalCosts(additionalCosts);
-                            sale.setTotal(total);
-
-                            // Reconstruct sale items (SaleDetail)
-                            if (!detailsData.isEmpty()) {
-                                String[] detailsArr = detailsData.split(";");
-                                for (String detailStr : detailsArr) {
-                                    String[] itemParts = detailStr.split(":");
-                                    if (itemParts.length >= 3) {
-                                        String productId = itemParts[0].trim();
-                                        int quantity = Integer.parseInt(itemParts[1].trim());
-                                        double unitPrice = Double.parseDouble(itemParts[2].trim());
-
-                                        Product product = productMap.get(productId);
-                                        if (product != null) {
-                                            sale.addDetail(new SaleDetail(product, quantity, unitPrice));
-                                        }
-                                    }
-                                }
-                            }
-
-                            sales.add(sale);
-                        }
-                    } catch (NumberFormatException | DateTimeParseException e) {
-                        // Skip corrupted or unparseable lines defensively
-                    }
-                }
+                sales.add(csvLineToSale(line, lineNumber, clientMap, sellerMap, productMap));
             }
         } catch (IOException e) {
-            throw new RuntimeException("Error loading sales: " + e.getMessage(), e);
+            throw new PersistenceException("No se pudieron leer las ventas desde '" + filePath + "'", e);
         }
 
         return sales;
+    }
+
+    /**
+     * Reconstructs a single {@link Sale} from one CSV-formatted line.
+     *
+     * @param line the line read from the file
+     * @param lineNumber the 1-based line number, used in error messages
+     * @param clientMap clients by id
+     * @param sellerMap sellers by id
+     * @param productMap products and accessories by id
+     * @return the reconstructed sale
+     * @throws PersistenceException if the line is malformed or references unknown data
+     */
+    private Sale csvLineToSale(String line, int lineNumber,
+                               Map<String, Client> clientMap,
+                               Map<String, Seller> sellerMap,
+                               Map<String, Product> productMap) {
+        String[] parts = line.split(",", -1);
+        CsvSupport.requireColumns(parts, COLUMNS, filePath, lineNumber);
+
+        String id = parts[0].trim();
+        CsvSupport.requireNotBlank(id, "id", filePath, lineNumber);
+
+        LocalDate date;
+        try {
+            date = LocalDate.parse(parts[1].trim());
+        } catch (DateTimeParseException e) {
+            throw CsvSupport.corruptLine(filePath, lineNumber, "la fecha no es valida: '" + parts[1] + "'", e);
+        }
+
+        String sellerId = parts[2].trim();
+        String clientId = parts[3].trim();
+        Seller seller = sellerMap.get(sellerId);
+        if (seller == null) {
+            throw CsvSupport.corruptLine(filePath, lineNumber,
+                    "el vendedor '" + sellerId + "' de la venta '" + id + "' no existe", null);
+        }
+        Client client = clientMap.get(clientId);
+        if (client == null) {
+            throw CsvSupport.corruptLine(filePath, lineNumber,
+                    "el cliente '" + clientId + "' de la venta '" + id + "' no existe", null);
+        }
+
+        double discountAmount = parseAmount(parts[5], "descuento", lineNumber);
+        double additionalCosts = parseAmount(parts[6], "costos adicionales", lineNumber);
+        double total = parseAmount(parts[7], "total", lineNumber);
+
+        Sale sale = new Sale(id, client, seller, date);
+        sale.setAppliedPromotionName(parts[4].trim());
+        sale.setDiscountAmount(discountAmount);
+        sale.setAdditionalCosts(additionalCosts);
+        sale.setTotal(total);
+
+        String detailsData = parts[8].trim();
+        if (!detailsData.isEmpty()) {
+            for (String detailStr : detailsData.split(";", -1)) {
+                sale.addDetail(parseDetail(detailStr, lineNumber, productMap));
+            }
+        }
+        return sale;
+    }
+
+    /**
+     * Parses a monetary column, rejecting non-numeric, infinite and negative values.
+     *
+     * @param text the raw column value
+     * @param fieldName the field name, used in the error message
+     * @param lineNumber the 1-based line number
+     * @return the parsed amount
+     * @throws PersistenceException if the value is not a valid non-negative number
+     */
+    private double parseAmount(String text, String fieldName, int lineNumber) {
+        double value;
+        try {
+            value = Double.parseDouble(text.trim());
+        } catch (NumberFormatException e) {
+            throw CsvSupport.corruptLine(filePath, lineNumber,
+                    "el campo '" + fieldName + "' no es un numero valido: '" + text + "'", e);
+        }
+        if (Double.isNaN(value) || Double.isInfinite(value) || value < 0) {
+            throw CsvSupport.corruptLine(filePath, lineNumber,
+                    "el campo '" + fieldName + "' no puede ser negativo ni infinito: " + value, null);
+        }
+        return value;
+    }
+
+    /**
+     * Parses one {@code productId:quantity:unitPrice} item of a sale.
+     *
+     * @param detailStr the raw item text
+     * @param lineNumber the 1-based line number
+     * @param productMap products and accessories by id
+     * @return the reconstructed detail
+     * @throws PersistenceException if the item is malformed or the product does not exist
+     */
+    private SaleDetail parseDetail(String detailStr, int lineNumber, Map<String, Product> productMap) {
+        String[] itemParts = detailStr.split(":", -1);
+        if (itemParts.length != 3) {
+            throw CsvSupport.corruptLine(filePath, lineNumber,
+                    "el detalle '" + detailStr + "' debe tener el formato producto:cantidad:precio", null);
+        }
+        String productId = itemParts[0].trim();
+        Product product = productMap.get(productId);
+        if (product == null) {
+            throw CsvSupport.corruptLine(filePath, lineNumber,
+                    "el producto '" + productId + "' del detalle no existe", null);
+        }
+        int quantity;
+        double unitPrice;
+        try {
+            quantity = Integer.parseInt(itemParts[1].trim());
+            unitPrice = Double.parseDouble(itemParts[2].trim());
+        } catch (NumberFormatException e) {
+            throw CsvSupport.corruptLine(filePath, lineNumber,
+                    "cantidad o precio invalidos en el detalle '" + detailStr + "'", e);
+        }
+        if (Double.isNaN(unitPrice) || Double.isInfinite(unitPrice)) {
+            throw CsvSupport.corruptLine(filePath, lineNumber,
+                    "el precio del detalle '" + detailStr + "' no es finito", null);
+        }
+        try {
+            return new SaleDetail(product, quantity, unitPrice);
+        } catch (IllegalArgumentException e) {
+            throw CsvSupport.corruptLine(filePath, lineNumber,
+                    "detalle invalido '" + detailStr + "': " + e.getMessage(), e);
+        }
     }
 }
