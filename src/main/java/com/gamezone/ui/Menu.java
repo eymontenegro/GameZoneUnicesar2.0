@@ -1,5 +1,10 @@
 package com.gamezone.ui;
 
+import com.gamezone.exceptions.BusinessRuleException;
+import com.gamezone.exceptions.GameZoneException;
+import com.gamezone.exceptions.InvalidDataException;
+import com.gamezone.exceptions.PersistenceException;
+import com.gamezone.exceptions.ResourceNotFoundException;
 import com.gamezone.service.AccessoryService;
 import com.gamezone.service.PersonService;
 import com.gamezone.service.ProductService;
@@ -36,7 +41,7 @@ public class Menu {
         int option;
         do {
             System.out.println("\n==========================================");
-            System.out.println("          GAMEZONE - MENÚ PRINCIPAL       ");
+            System.out.println("          GAMEZONE - MENÚ PRINCIPAL         ");
             System.out.println("==========================================");
             System.out.println("1. Gestión de Productos (Consolas / Juegos)");
             System.out.println("2. Gestión de Accesorios");
@@ -51,18 +56,32 @@ public class Menu {
 
             option = readInt();
 
-            switch (option) {
-                case 1 -> subMenu.showProductSubMenu();
-                case 2 -> subMenu.showAccessorySubMenu();
-                case 3 -> subMenu.showPersonSubMenu();
-                case 4 -> subMenu.showPromotionSubMenu();
-                case 5 -> subMenu.showReturnSubMenu();
-                case 6 -> subMenu.showWarrantySubMenu();
-                case 7 -> subMenu.processSaleForm();
-                case 8 -> subMenu.listSalesHistory();
-                case 0 -> System.out.println("\nSaliendo del sistema...");
-                default -> System.out.println("Opción no válida.");
+            // Bloque try-catch en cascada para el manejo diferenciado de excepciones (Requerimiento 6)
+            try {
+                switch (option) {
+                    case 1 -> subMenu.showProductSubMenu();
+                    case 2 -> subMenu.showAccessorySubMenu();
+                    case 3 -> subMenu.showPersonSubMenu();
+                    case 4 -> subMenu.showPromotionSubMenu();
+                    case 5 -> subMenu.showReturnSubMenu();
+                    case 6 -> subMenu.showWarrantySubMenu();
+                    case 7 -> subMenu.processSaleForm();
+                    case 8 -> subMenu.listSalesHistory();
+                    case 0 -> System.out.println("\nSaliendo del sistema...");
+                    default -> System.out.println("Opción no válida.");
+                }
+            } catch (ResourceNotFoundException e) {
+                System.out.println("\n[AVISO] No se encontró el recurso solicitado: " + e.getMessage());
+            } catch (BusinessRuleException e) {
+                System.out.println("\n[ERROR DE NEGOCIO] No se puede completar la operación: " + e.getMessage());
+            } catch (InvalidDataException e) {
+                System.out.println("\n[DATO INVÁLIDO] Los datos ingresados no son válidos: " + e.getMessage());
+            } catch (PersistenceException e) {
+                System.out.println("\n[ERROR DE SISTEMA] Ocurrió un problema al acceder a los datos del sistema. Contacte al administrador. (" + e.getMessage() + ")");
+            } catch (GameZoneException e) {
+                System.out.println("\n[ERROR] Ha ocurrido un error en la aplicación: " + e.getMessage());
             }
+
         } while (option != 0);
     }
 
