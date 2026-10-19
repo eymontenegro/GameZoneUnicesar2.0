@@ -17,44 +17,62 @@ import com.gamezone.service.WarrantyService;
 import com.gamezone.ui.Menu;
 
 /**
- * Main entry point for the GameZone application.
- * Initializes repositories, business services, and launches the main console menu.
+ * Main application entry point for the GameZone Unicesar system.
+ * Responsible for configuring CSV persistence file paths, initializing repositories,
+ * wiring business layer dependencies, and bootstrapping the interactive console user interface.
+ *
+ * @author GameZone Technical Team
+ * @version 1.0
  */
 public class Main {
 
     /**
-     * Main execution method.
+     * Private constructor to prevent instantiation of this utility/main class.
+     */
+    private Main() {
+        // Utility class
+    }
+
+    /**
+     * Main execution method that starts the GameZone application lifecycle.
      *
-     * @param args command-line arguments
+     * @param args command-line arguments passed during application startup
      */
     public static void main(String[] args) {
-        // Initialize independent services and repositories
-        ProductService productService = new ProductService();
-        AccessoryRepository accessoryRepository = new AccessoryRepository();
-        AccessoryService accessoryService = new AccessoryService(accessoryRepository);
-        PersonService personService = new PersonService();
+        // 1. Define CSV storage file paths for the persistence layer
+        String clientsPath = "data/clients.csv";
+        String sellersPath = "data/sellers.csv";
+        String productsPath = "data/products.csv";
+        String accessoriesPath = "data/accessories.csv";
+        String promotionsPath = "data/promotions.csv";
+        String salesPath = "data/sales.csv";
+        String returnsPath = "data/returns.csv";
+        String warrantiesPath = "data/warranties.csv";
 
-        PromotionRepository promotionRepository = new PromotionRepository();
-        PromotionService promotionService = new PromotionService(promotionRepository);
-
-        SaleRepository saleRepository = new SaleRepository();
-
-        // WarrantyRepository needs its own ProductRepository and PersonRepository
-        // instances to resolve Sale/Product references, since ProductService and
-        // PersonService keep their repositories private. These extra instances
-        // only read/write the same CSV files and hold no in-memory state, so
-        // having a second instance alongside the one used inside each service
-        // is safe.
+        // 2. Initialize Repositories with their respective file paths and cross-dependencies
+        PersonRepository personRepository = new PersonRepository(clientsPath, sellersPath);
+        ProductRepository productRepository = new ProductRepository(productsPath);
+        AccessoryRepository accessoryRepository = new AccessoryRepository(accessoriesPath);
+        PromotionRepository promotionRepository = new PromotionRepository(promotionsPath);
+        SaleRepository saleRepository = new SaleRepository(salesPath);
+        ReturnRepository returnRepository = new ReturnRepository(returnsPath);
+        
         WarrantyRepository warrantyRepository = new WarrantyRepository(
                 saleRepository,
-                new ProductRepository(),
-                new PersonRepository(),
+                productRepository,
+                personRepository,
                 accessoryRepository,
-                promotionRepository
+                promotionRepository,
+                warrantiesPath
         );
+
+        // 3. Initialize Business Services in correct dependency hierarchy order
+        ProductService productService = new ProductService(productRepository);
+        AccessoryService accessoryService = new AccessoryService(accessoryRepository);
+        PersonService personService = new PersonService(personRepository);
+        PromotionService promotionService = new PromotionService(promotionRepository);
         WarrantyService warrantyService = new WarrantyService(warrantyRepository);
 
-        // Initialize SaleService with the required parameters, including WarrantyService
         SaleService saleService = new SaleService(
                 saleRepository,
                 personService,
@@ -64,14 +82,19 @@ public class Main {
                 warrantyService
         );
 
-        // ReturnRepository only needs SaleService, since SaleService already
-        // knows how to resolve both products and accessories by id.
-        ReturnRepository returnRepository = new ReturnRepository();
         ReturnService returnService = new ReturnService(returnRepository, saleService);
 
-        // Initialize the main menu with all services, including WarrantyService, and display it
-        Menu mainMenu = new Menu(productService, accessoryService, personService,
-                promotionService, saleService, returnService, warrantyService);
+        // 4. Initialize the main navigation menu controller with all fully wired services and launch it
+        Menu mainMenu = new Menu(
+                productService,
+                accessoryService,
+                personService,
+                promotionService,
+                saleService,
+                returnService,
+                warrantyService
+        );
+
         mainMenu.displayMenu();
     }
 }
