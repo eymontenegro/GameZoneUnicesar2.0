@@ -25,7 +25,8 @@ import java.util.Scanner;
 
 /**
  * Handles operations, user input forms, and interactive sub-menus
- * for the GameZone system.
+ * for the GameZone system. Propagates custom runtime exceptions up
+ * to Menu for centralized, differentiated error handling.
  */
 public class SubMenu {
 
@@ -53,13 +54,13 @@ public class SubMenu {
      * @param scanner the shared Scanner used to read console input
      */
     public SubMenu(ProductService productService,
-                    AccessoryService accessoryService,
-                    PersonService personService,
-                    PromotionService promotionService,
-                    SaleService saleService,
-                    ReturnService returnService,
-                    WarrantyService warrantyService,
-                    Scanner scanner) {
+                   AccessoryService accessoryService,
+                   PersonService personService,
+                   PromotionService promotionService,
+                   SaleService saleService,
+                   ReturnService returnService,
+                   WarrantyService warrantyService,
+                   Scanner scanner) {
         this.productService = productService;
         this.accessoryService = accessoryService;
         this.personService = personService;
@@ -119,12 +120,8 @@ public class SubMenu {
                 case 4 -> {
                     System.out.print("ID del producto: "); String id = scanner.nextLine();
                     System.out.print("Cantidad a descontar del stock: "); int qty = readInt();
-                    try {
-                        productService.updateStock(id, qty);
-                        System.out.println("¡Stock actualizado exitosamente!");
-                    } catch (Exception e) {
-                        System.out.println("Error: " + e.getMessage());
-                    }
+                    productService.updateStock(id, qty);
+                    System.out.println("¡Stock actualizado exitosamente!");
                 }
                 case 0 -> {}
                 default -> System.out.println("Opción inválida.");
@@ -210,12 +207,8 @@ public class SubMenu {
                 case 7 -> {
                     System.out.print("ID del accesorio: "); String id = scanner.nextLine();
                     System.out.print("Cantidad a descontar del stock: "); int qty = readInt();
-                    try {
-                        accessoryService.updateStock(id, qty);
-                        System.out.println("¡Stock del accesorio actualizado exitosamente!");
-                    } catch (Exception e) {
-                        System.out.println("Error: " + e.getMessage());
-                    }
+                    accessoryService.updateStock(id, qty);
+                    System.out.println("¡Stock del accesorio actualizado exitosamente!");
                 }
                 case 0 -> {}
                 default -> System.out.println("Opción inválida.");
@@ -361,9 +354,7 @@ public class SubMenu {
     }
 
     /**
-     * Displays and manages the warranty management sub-menu: querying a
-     * specific product/sale warranty, listing all warranties, listing
-     * currently active warranties, and listing warranties expiring soon.
+     * Displays and manages the warranty management sub-menu.
      */
     public void showWarrantySubMenu() {
         int option;
@@ -389,8 +380,7 @@ public class SubMenu {
     }
 
     /**
-     * Asks the user for a product id and a sale id, then prints the
-     * matching warranty certificate, or a not-found message.
+     * Finds and displays the warranty associated with a specific product in a sale.
      */
     private void findWarrantyByProductFlow() {
         System.out.print("ID del producto: "); String productId = scanner.nextLine().trim();
@@ -405,8 +395,7 @@ public class SubMenu {
     }
 
     /**
-     * Asks the user how many days ahead to look, then lists the warranties
-     * expiring within that window.
+     * Lists warranties expiring within a specified number of days ahead.
      */
     private void listExpiringSoonFlow() {
         System.out.print("¿Con cuántos días de anticipación desea consultar?: ");
@@ -420,11 +409,10 @@ public class SubMenu {
     }
 
     /**
-     * Prints a titled list of warranty certificates, or a message when the
-     * list is empty.
+     * Prints a formatted list of warranty certificates.
      *
-     * @param title the section title to print before the list
-     * @param warranties the warranties to print
+     * @param title the section title
+     * @param warranties the list of warranties to print
      */
     private void listWarranties(String title, List<Warranty> warranties) {
         if (warranties.isEmpty()) {
@@ -439,9 +427,7 @@ public class SubMenu {
     }
 
     /**
-     * Guides the user through registering a new return: sale id, list of
-     * product ids to return, and a reason. Reports validation errors in
-     * Spanish, as returned by ReturnService.
+     * Guides the user through the process of registering a product return.
      */
     private void registerReturnFlow() {
         System.out.print("Ingrese el identificador de la venta original: ");
@@ -460,17 +446,13 @@ public class SubMenu {
         System.out.print("Ingrese el motivo de la devolución: ");
         String reason = scanner.nextLine();
 
-        try {
-            Return createdReturn = returnService.registerReturn(saleId, productIds, reason);
-            System.out.println("\n¡Devolución registrada exitosamente!");
-            System.out.println(createdReturn.generateReturnReceipt());
-        } catch (IllegalArgumentException e) {
-            System.out.println("No se pudo registrar la devolución: " + e.getMessage());
-        }
+        Return createdReturn = returnService.registerReturn(saleId, productIds, reason);
+        System.out.println("\n¡Devolución registrada exitosamente!");
+        System.out.println(createdReturn.generateReturnReceipt());
     }
 
     /**
-     * Lists every return currently registered in the system.
+     * Lists all returns registered in the system.
      */
     private void listAllReturns() {
         List<Return> returns = returnService.viewAllReturns();
@@ -486,7 +468,7 @@ public class SubMenu {
     }
 
     /**
-     * Lists the returns associated with a specific customer, entered by the user.
+     * Lists returns associated with a specific customer.
      */
     private void listReturnsByCustomer() {
         System.out.print("Ingrese el identificador del cliente: ");
@@ -505,7 +487,7 @@ public class SubMenu {
     }
 
     /**
-     * Lists the returns associated with a specific sale, entered by the user.
+     * Lists returns associated with a specific sale transaction.
      */
     private void listReturnsBySale() {
         System.out.print("Ingrese el identificador de la venta: ");
@@ -524,8 +506,7 @@ public class SubMenu {
     }
 
     /**
-     * Asks the user for a month and year, then displays the monthly balance
-     * (total sales minus total returns) for that period.
+     * Computes and displays the net monthly balance (sales minus returns).
      */
     private void showMonthlyBalance() {
         int month;
@@ -545,10 +526,7 @@ public class SubMenu {
     }
 
     /**
-     * Executes the form workflow to process a new sale transaction. For
-     * every console added to the cart, asks the seller whether the client
-     * wants to purchase an extended warranty for it; a basic warranty is
-     * generated automatically for every console regardless of this answer.
+     * Executes the form workflow to process a new sale transaction.
      */
     public void processSaleForm() {
         System.out.println("\n--- NUEVA VENTA ---");
@@ -562,23 +540,20 @@ public class SubMenu {
 
         while (adding) {
             System.out.print("ID del producto o accesorio: "); String productId = scanner.nextLine();
-            try {
-                Product p = saleService.findProductOrAccessoryById(productId);
-                System.out.print("Cantidad para (" + p.getTitle() + " - Stock disponible: " + p.getStock() + "): ");
-                int qty = readInt();
+            
+            Product p = saleService.findProductOrAccessoryById(productId);
+            System.out.print("Cantidad para (" + p.getTitle() + " - Stock disponible: " + p.getStock() + "): ");
+            int qty = readInt();
 
-                items.add(new SaleDetail(p, qty, p.getPrice()));
-                System.out.println("Producto agregado al carrito.");
+            items.add(new SaleDetail(p, qty, p.getPrice()));
+            System.out.println("Producto agregado al carrito.");
 
-                if (p instanceof Console) {
-                    System.out.print("¿Desea agregar garantía extendida para " + p.getTitle() + "? (s/n): ");
-                    String extendedAnswer = scanner.nextLine().trim();
-                    if (extendedAnswer.equalsIgnoreCase("s") || extendedAnswer.equalsIgnoreCase("y")) {
-                        productIdsWithExtendedWarranty.add(p.getId());
-                    }
+            if (p instanceof Console) {
+                System.out.print("¿Desea agregar garantía extendida para " + p.getTitle() + "? (s/n): ");
+                String extendedAnswer = scanner.nextLine().trim();
+                if (extendedAnswer.equalsIgnoreCase("s") || extendedAnswer.equalsIgnoreCase("y")) {
+                    productIdsWithExtendedWarranty.add(p.getId());
                 }
-            } catch (Exception e) {
-                System.out.println("Error: " + e.getMessage());
             }
 
             System.out.print("¿Desea agregar otro producto? (s/n): ");
@@ -586,27 +561,23 @@ public class SubMenu {
             adding = answer.equalsIgnoreCase("s") || answer.equalsIgnoreCase("y");
         }
 
-        try {
-            Sale sale = saleService.processSale(saleId, clientId, sellerId, items, productIdsWithExtendedWarranty);
-            System.out.println("\n==========================================");
-            System.out.println("        ¡VENTA PROCESADA EXITOSAMENTE!    ");
-            System.out.println("==========================================");
-            System.out.println("ID de la venta: " + sale.getId());
-            System.out.println("Subtotal: $" + sale.calculateTotal());
+        Sale sale = saleService.processSale(saleId, clientId, sellerId, items, productIdsWithExtendedWarranty);
+        System.out.println("\n==========================================");
+        System.out.println("         ¡VENTA PROCESADA EXITOSAMENTE!    ");
+        System.out.println("==========================================");
+        System.out.println("ID de la venta: " + sale.getId());
+        System.out.println("Subtotal: $" + sale.calculateTotal());
 
-            if (sale.getAppliedPromotionName() != null && !sale.getAppliedPromotionName().equals("Ninguna")) {
-                System.out.println("Promoción aplicada: " + sale.getAppliedPromotionName()
-                        + " (descuento: $" + sale.getDiscountAmount() + ")");
-            }
-
-            if (sale.getAdditionalCosts() > 0) {
-                System.out.println("Costo adicional por garantías extendidas: $" + sale.getAdditionalCosts());
-            }
-
-            System.out.println("Total final: $" + sale.calculateFinalTotal());
-        } catch (Exception e) {
-            System.out.println("Error al procesar la venta: " + e.getMessage());
+        if (sale.getAppliedPromotionName() != null && !sale.getAppliedPromotionName().equals("Ninguna")) {
+            System.out.println("Promoción aplicada: " + sale.getAppliedPromotionName()
+                    + " (descuento: $" + sale.getDiscountAmount() + ")");
         }
+
+        if (sale.getAdditionalCosts() > 0) {
+            System.out.println("Costo adicional por garantías extendidas: $" + sale.getAdditionalCosts());
+        }
+
+        System.out.println("Total final: $" + sale.calculateFinalTotal());
     }
 
     /**
