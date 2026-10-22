@@ -213,9 +213,10 @@ None of the audited classes receives system events. The services, the repositori
 | Pattern | Pure Fabrication (it also lowers High Cohesion; Pure Fabrication guides the correction) |
 | Module | People, Accessories, Promotions, Returns and Warranties (every repository in the scope) |
 | Evidence | The same code to write a file is repeated in five repositories: `PersonRepository.writeLines`, lines 151-161; `AccessoryRepository.saveAll`, lines 143-154; `PromotionRepository.saveAll`, lines 118-129; `ReturnRepository.saveAll`, lines 117-128; `WarrantyRepository.saveAll`, lines 151-162. Each opens a `BufferedWriter`, writes every line and wraps `IOException` in `PersistenceException`. The reading loop (file exists, skip blank lines, count the line number) is repeated in `loadAll` / `loadClients` / `loadSellers` of the same five classes (for example `AccessoryRepository`, lines 229-252, and `PromotionRepository`, lines 195-218). |
+| Authorship (git blame at 22e6df84fc809dd25f7869e22ab2c58f40e15d78) | In the five repeated writing blocks, `xacosta` wrote 7 lines in each one. `PersonRepository` 151-161: 7 xacosta, 3 mine, 1 Estefany Yulieth Montenegro Martelo. `AccessoryRepository` 143-154, `PromotionRepository` 118-129 and `ReturnRepository` 117-128: 7 xacosta, 2 mine, 3 Estefany Yulieth Montenegro Martelo each. `WarrantyRepository` 151-162: 7 xacosta, 2 mine, 3 yanelis1612. In total 11 lines are mine. `CsvSupport` has 211 lines, all by `xacosta`, none mine. |
 | Explanation | Reading and writing text files line by line is a responsibility that belongs to no domain class, and no helper class exists for it. Each repository implements it again next to its own job of converting objects to CSV text. |
 | Consequence | Any change in how files are handled (encoding, atomic writing, a new error message) must be repeated in each repository. Each repository has two reasons to change: the CSV format and the file mechanics. |
-| Proposed solution | Create a helper class `CsvFile` in `persistence` (Pure Fabrication) that, given a path, writes a list of lines and reads the lines with their numbers. The five repositories delegate to it and keep their own error messages and the same files. |
+| Proposed solution | Do not create a new class. Extend the existing `CsvSupport` (Pure Fabrication) with two methods in its current style: one that writes a list of lines to a path, reusing `ensureParentDirectory` and `PersistenceException`, and one that reads the lines with their numbers. The five repositories delegate to them and keep their own error messages and the same files. This is a shared finding: the change in `CsvSupport` belongs to Xavi, and the change in each repository belongs to its owner. |
 | Code of another developer | No for the five repositories above. `ProductRepository` (lines 117 and 192) and `SaleRepository` (lines 137 and 212) repeat the same code, but they belong to Developer 1 and to the Technical Leader. They are reported in section 14, not audited here. |
 
 ## 10. Indirection
@@ -289,7 +290,7 @@ Each row is the same code seen from a different pattern. Registering it again un
 | V-07 | Polymorphism | `AccessoryRepository.accessoryToCsvLine`, `csvLineToAccessory` | Accessories | No |
 | V-08 | Polymorphism | `PromotionRepository.promotionToCsvLine`, `csvLineToPromotion` | Promotions | No |
 | V-09 | Polymorphism | `WarrantyRepository.warrantyToCsvLine`, `csvLineToWarranty` | Warranties | No |
-| V-10 | Pure Fabrication | File reading and writing in five repositories | All | No |
+| V-10 | Pure Fabrication | File reading and writing in five repositories | All | Yes: shared finding with Xavi (`xacosta`), who owns `CsvSupport`; `ProductRepository` and `SaleRepository` also repeat the code and are not mine |
 | V-11 | Indirection | Services bound to concrete repositories | All | No |
 
 ## 14. Findings reported to the Technical Leader
