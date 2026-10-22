@@ -1,7 +1,9 @@
 # GRASP Audit - Developer 2
 
 - **Auditor:** Andrea Laurens (alaurens), Developer 2
-- **Repository state audited:** `develop` at commit `22e6df8` (merge of pull request #37, exception handling)
+- **Repository state audited:** `develop` at commit `22e6df84fc809dd25f7869e22ab2c58f40e15d78` (merge of pull request #37, exception handling)
+- **Audit branch:** `feature/grasp-audit`
+- **Audit date:** 2026-10-22
 - **Language note:** the requirement document calls the customer class `Customer`; in this repository it is `Client`.
 
 ## 1. Scope
