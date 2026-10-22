@@ -113,3 +113,83 @@ None of the audited classes receives system events. The services, the repositori
 | Consequence | Any change to the constructor of those repositories breaks `WarrantyService`, and the constructor is dead code that hides the real dependencies. |
 | Proposed solution | Remove the unused no-argument constructor. The behavior of the system does not change. |
 | Code of another developer | No. |
+
+## 7. High Cohesion
+
+**Verdict: Violation** (1 finding).
+
+### Correct applications
+
+- `PersonService` only manages people: registering clients (line 87), listing clients and sellers (lines 99 and 108), finding a person (lines 120 and 143) and recording purchases (line 167).
+- `PromotionService`, `AccessoryService` and `WarrantyService` each handle only the creation, listing and search of their own catalog. Validation rules live in their own validator classes, not in the services.
+- `Person`, `Client` and `Seller` hold only the data and behavior of a person (`Client.addPurchase`, `Seller.getEmployeeCode`, `getRoleDescription`).
+
+### Violations
+
+| Field | Content |
+|---|---|
+| ID | V-05 |
+| Pattern | High Cohesion |
+| Module | Returns (Requirement 3) |
+| Evidence | `ReturnService.generateMonthlyBalance`, lines 157-176. It reads every sale through `saleService.listAllSales()` (line 158), filters them by month and year, adds their totals with `Sale::calculateFinalTotal` (line 163), and then subtracts the returns of the same month (lines 166-173). The rest of the class (`registerReturn`, lines 75-123, and the `view...` methods, lines 125-155) only processes and queries returns. The caller is `SubMenu`, line 524. |
+| Explanation | Half of the method computes the monthly sales revenue, which has nothing to do with processing returns. `ReturnService` ends up with two unrelated responsibilities: processing returns and producing a financial report. |
+| Consequence | The class has two reasons to change. If the balance changes (for example, taxes or another period), the class that handles returns must be edited and retested. `ReturnService` also needs `SaleService` in its constructor partly for this report. |
+| Proposed solution | Extract the report into a new class `MonthlyBalanceService` (package `service`) that receives `SaleService` and `ReturnService`, with the same formula and the same order of operations so the result is identical. `ReturnService` keeps only the return rules. |
+| Code of another developer | Yes. `SubMenu` (line 524) must call the new class and `Main` must build it. Both belong to the Technical Leader. |
+
+## 8. Polymorphism
+
+**Verdict: Violation** (4 findings).
+
+### Correct applications
+
+- `Person.getRoleDescription` (`Person.java`, line 47) is abstract and implemented by `Client` (line 48) and `Seller` (line 26). Nobody asks for the type of a person to build the description.
+- `PromotionService.findBestPromotionFor` (line 153) calls `promotion.calculateDiscount(sale)` on every promotion without checking its concrete class.
+- `AccessoryService.findAccessoriesCompatibleWith` (lines 148-150) works through the `ConsoleCompatible` interface instead of testing for `Controller` or `Memory`.
+- `WarrantyService.assignBasicWarranty` and `assignExtendedWarranty` (lines 71 and 79) return the abstract behavior of `Warranty`; the duration is decided by each subclass.
+
+### Violations
+
+| Field | Content |
+|---|---|
+| ID | V-06 |
+| Pattern | Polymorphism |
+| Module | Accessories (Requirement 1) |
+| Evidence | `AccessoryService.matchesType`, lines 126-135: an `if / else if` chain compares the text `"CONTROLLER"`, `"CABLE"` or `"MEMORY"` and then tests `accessory instanceof Controller`, `Cable` or `Memory`. It is used by `listAccessoriesByType` (line 121). |
+| Explanation | The service decides behavior by the concrete type of each accessory instead of asking the accessory. |
+| Consequence | A new accessory type (for example, a headset) is silently ignored by `listAccessoriesByType` until someone remembers to add another branch here. The service also imports every concrete accessory class. |
+| Proposed solution | Add an abstract method `getAccessoryKind()` to `Accessory` (it cannot be called `getType` because `Memory.getType` already exists), implemented by `Controller`, `Cable` and `Memory`. `matchesType` becomes a comparison with `accessory.getAccessoryKind()`. The three accepted texts and the empty result for an unknown text stay the same. |
+| Code of another developer | Yes. `Accessory`, `Controller`, `Cable` and `Memory` belong to Developer 1. |
+
+| Field | Content |
+|---|---|
+| ID | V-07 |
+| Pattern | Polymorphism |
+| Module | Accessories (Requirement 1) |
+| Evidence | `AccessoryRepository.accessoryToCsvLine`, lines 93-116: `instanceof Controller`, `Cable` and `Memory` choose the type tag and the extra columns. `csvLineToAccessory`, lines 188-213: the same three cases chosen by comparing the tag text. |
+| Explanation | Each accessory type is handled by a conditional in the repository, in two places (writing and reading), that must be kept in sync by hand. |
+| Consequence | Adding an accessory type requires editing two methods of the repository, and a forgotten branch only fails when the program is already running (`"Unknown accessory type"`, line 115). |
+| Proposed solution | Create one small CSV format class per accessory type in `persistence` (tag, write columns and read columns together) and let the repository look them up by tag or by class. The file content must be identical. |
+| Code of another developer | No. The new classes are created by Developer 2. |
+
+| Field | Content |
+|---|---|
+| ID | V-08 |
+| Pattern | Polymorphism |
+| Module | Promotions (Requirement 2) |
+| Evidence | `PromotionRepository.promotionToCsvLine`, lines 75-90 (`instanceof PercentageDiscount`, `CategoryDiscount`, `BulkPurchaseDiscount`) and `csvLineToPromotion`, lines 161-183 (the same three cases by tag text). |
+| Explanation | Same problem as V-07, applied to promotions. |
+| Consequence | A new kind of promotion requires editing two methods of the repository and fails at run time (`"Unknown promotion type"`, line 89) if one is forgotten. |
+| Proposed solution | Same solution as V-07: one CSV format class per promotion type, with the same file content. |
+| Code of another developer | No. |
+
+| Field | Content |
+|---|---|
+| ID | V-09 |
+| Pattern | Polymorphism |
+| Module | Warranties (Requirement 4) |
+| Evidence | `WarrantyRepository.warrantyToCsvLine`, line 119: `(warranty instanceof BasicWarranty) ? "BASIC" : "EXTENDED"`. `csvLineToWarranty`, lines 200-209: the tag text decides which class is created. |
+| Explanation | The ternary assumes there are only two warranty types. Any other subclass would be saved as `EXTENDED`. |
+| Consequence | A third warranty type would be written to the file with the wrong tag without any error, and the data would be corrupted when the file is read again. |
+| Proposed solution | Same solution as V-07: one CSV format class per warranty type, and an error when the type is not registered. For the existing types the file content stays the same. |
+| Code of another developer | No. |
