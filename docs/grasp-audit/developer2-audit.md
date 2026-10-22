@@ -47,10 +47,10 @@
 | ID | V-01 |
 | Pattern | Information Expert |
 | Module | Returns (Requirement 3) |
-| Evidence | `ReturnService.findProductInSale`, lines 56-65: the loop `for (SaleDetail detail : sale.getDetails())` reads `detail.getProduct().getId()` to look for a product. `Sale` has no method to look up one of its products. |
+| Evidence | `ReturnService.findProductInSale`, lines 56-65: the loop `for (SaleDetail detail : sale.getDetails())` reads `detail.getProduct().getId()` to look for a product. `Sale` has no method to look up one of its products. The same search is repeated in `ReturnRepository.findProductInSale`, lines 138-149 (my code). |
 | Explanation | `Sale` owns the list of sale lines, so it is the expert on which products it contains. `ReturnService` reaches through `Sale`, then `SaleDetail`, then `Product` to answer a question that belongs to `Sale`. |
 | Consequence | If `Sale` changes how it stores its lines (for example, grouping repeated products), `ReturnService` breaks. Any other class that needs the same search would repeat the loop. |
-| Proposed solution | Add `Sale.findProductById(String productId)` (Information Expert) and make `ReturnService.findProductInSale` call it, keeping the same exception and the same message when the product is not in the sale. |
+| Proposed solution | Add `Sale.findProductById(String productId)` (Information Expert) and make `ReturnService.findProductInSale` call it, keeping the same exception and the same message when the product is not in the sale. `ReturnRepository.findProductInSale` is changed the same way, to delegate to `Sale.findProductById`. |
 | Code of another developer | Yes. `Sale` belongs to the Technical Leader, who would add the new method. |
 
 | Field | Content |
@@ -110,10 +110,10 @@ None of the audited classes receives system events. The services, the repositori
 | ID | V-04 |
 | Pattern | Low Coupling |
 | Module | Warranties (Requirement 4) |
-| Evidence | `WarrantyService()`, lines 40-48: it creates `new WarrantyRepository(new SaleRepository(), new ProductRepository(), new PersonRepository(), new AccessoryRepository(), new PromotionRepository())`. No code calls this constructor: `Main` (line 74) uses `new WarrantyService(warrantyRepository)`, and no other `new WarrantyService()` exists in the project. |
+| Evidence | `WarrantyService()`, lines 40-48: it creates `new WarrantyRepository(new SaleRepository(), new ProductRepository(), new PersonRepository(), new AccessoryRepository(), new PromotionRepository())`. No code calls this constructor: `Main` (line 74) uses `new WarrantyService(warrantyRepository)`, and no other `new WarrantyService()` exists in the project. Same case in `PersonService()`, lines 31-33 (my code): it creates a `PersonRepository` directly and no code calls it. |
 | Explanation | The service is tied to six concrete classes when it is built, although it only needs a `WarrantyRepository`. |
 | Consequence | Any change to the constructor of those repositories breaks `WarrantyService`, and the constructor is dead code that hides the real dependencies. |
-| Proposed solution | Remove the unused no-argument constructor. The behavior of the system does not change. |
+| Proposed solution | Remove the unused no-argument constructor. The behavior of the system does not change. The unused `PersonService()` constructor is removed too. |
 | Code of another developer | No. |
 
 ## 7. High Cohesion
@@ -217,7 +217,7 @@ None of the audited classes receives system events. The services, the repositori
 | Explanation | Reading and writing text files line by line is a responsibility that belongs to no domain class, and no helper class exists for it. Each repository implements it again next to its own job of converting objects to CSV text. |
 | Consequence | Any change in how files are handled (encoding, atomic writing, a new error message) must be repeated in each repository. Each repository has two reasons to change: the CSV format and the file mechanics. |
 | Proposed solution | Do not create a new class. Extend the existing `CsvSupport` (Pure Fabrication) with two methods in its current style: one that writes a list of lines to a path, reusing `ensureParentDirectory` and `PersistenceException`, and one that reads the lines with their numbers. The five repositories delegate to them and keep their own error messages and the same files. This is a shared finding: the change in `CsvSupport` belongs to Xavi, and the change in each repository belongs to its owner. |
-| Code of another developer | No for the five repositories above. `ProductRepository` (lines 117 and 192) and `SaleRepository` (lines 137 and 212) repeat the same code, but they belong to Developer 1 and to the Technical Leader. They are reported in section 14, not audited here. |
+| Code of another developer | Yes. `CsvSupport` (Xavi, `xacosta`) must be extended, so this is a shared finding. The five repositories above are mine. `ProductRepository` (lines 117 and 192) and `SaleRepository` (lines 137 and 212) repeat the same code and belong to other developers; they are reported in the section on problems found in code of other developers. |
 
 ## 10. Indirection
 
@@ -235,11 +235,11 @@ None of the audited classes receives system events. The services, the repositori
 | ID | V-11 |
 | Pattern | Indirection |
 | Module | People, Accessories, Promotions, Returns and Warranties (services) |
-| Evidence | Every service holds a concrete repository class and loads its data from the files in its constructor: `PersonService`, lines 25 and 40-48 (`repository.loadClients()`, `repository.loadSellers()`); `AccessoryService`, lines 29 and 37-41; `PromotionService`, lines 31 and 39-43; `WarrantyService`, lines 34 and 56-60; `ReturnService`, lines 28 and 37-43. No interface exists between a service and its repository. `src/test` contains only the seven `*RepositoryTest` classes and no service test. |
+| Evidence | Every service holds a concrete repository class and loads its data from the files in its constructor: `PersonService`, lines 25 and 40-48 (`repository.loadClients()`, `repository.loadSellers()`); `AccessoryService`, lines 29 and 37-41; `PromotionService`, lines 31 and 39-43; `WarrantyService`, lines 34 and 56-60; `ReturnService`, lines 28 and 37-43. No interface exists between a service and its repository. `src/test` contains only the seven `*RepositoryTest` classes and no service test. The same design appears in `SaleService` (Technical Leader) and `ProductService` (Developer 1), which also depend on the concrete repository. |
 | Explanation | The services talk directly to the CSV implementation. There is no intermediate abstraction that separates the business rules from the way data is stored. |
 | Consequence | A service cannot be created without a real repository that reads `data/*.csv`, so the business rules cannot be tested alone (which is why no service has a test). Changing the storage (for example, a database) would require editing the five services. |
 | Proposed solution | Create one small interface per module in `persistence` (for example `AccessoryStore` with `loadAll` and `saveAll`), implemented by the existing repositories. Each service depends on its interface. `Main` still compiles unchanged because it passes the same repository objects. |
-| Code of another developer | No. |
+| Code of another developer | Yes. `SaleService` (Technical Leader) and `ProductService` (Developer 1) have the same design, so changing their dependency on the concrete repository belongs to their owners. Boundary finding to be unified by the Technical Leader. |
 
 ## 11. Protected Variations
 
@@ -281,17 +281,17 @@ Each row is the same code seen from a different pattern. Registering it again un
 
 | ID | Pattern | Class and method | Module | Changes code of another developer |
 |---|---|---|---|---|
-| V-01 | Information Expert | `ReturnService.findProductInSale` | Returns | Yes, Technical Leader (`Sale`) |
+| V-01 | Information Expert | `ReturnService.findProductInSale` and `ReturnRepository.findProductInSale` | Returns | Yes, Technical Leader (`Sale`) |
 | V-02 | Information Expert | `WarrantyService.listWarrantiesExpiringSoon` | Warranties | Yes, Developer 1 (`Warranty`) |
 | V-03 | Low Coupling | `WarrantyRepository` (constructor and `loadAll`) | Warranties | Yes, Technical Leader (`Main`, possibly `SaleService`) |
-| V-04 | Low Coupling | `WarrantyService()` | Warranties | No |
+| V-04 | Low Coupling | `WarrantyService()` and `PersonService()` | Warranties, People | No |
 | V-05 | High Cohesion | `ReturnService.generateMonthlyBalance` | Returns | Yes, Technical Leader (`SubMenu`, `Main`) |
 | V-06 | Polymorphism | `AccessoryService.matchesType` | Accessories | Yes, Developer 1 (`Accessory` and subclasses) |
 | V-07 | Polymorphism | `AccessoryRepository.accessoryToCsvLine`, `csvLineToAccessory` | Accessories | No |
 | V-08 | Polymorphism | `PromotionRepository.promotionToCsvLine`, `csvLineToPromotion` | Promotions | No |
 | V-09 | Polymorphism | `WarrantyRepository.warrantyToCsvLine`, `csvLineToWarranty` | Warranties | No |
 | V-10 | Pure Fabrication | File reading and writing in five repositories | All | Yes: shared finding with Xavi (`xacosta`), who owns `CsvSupport`; `ProductRepository` and `SaleRepository` also repeat the code and are not mine |
-| V-11 | Indirection | Services bound to concrete repositories | All | No |
+| V-11 | Indirection | Services bound to concrete repositories | All | Yes: `SaleService` (Technical Leader) and `ProductService` (Developer 1) share the design |
 
 ## 14. Findings reported to the Technical Leader
 
@@ -308,8 +308,6 @@ These findings need a change in code owned by another developer. The corrections
 ### Problems found in code of other developers (not audited here)
 
 - `ProductRepository` (lines 117 and 192) and `SaleRepository` (lines 137 and 212) repeat the file reading and writing code described in V-10.
-- `ReturnRepository.findProductInSale` (lines 138-149) repeats the search that V-01 describes in `ReturnService`. It is in my code and will be fixed together with V-01 once `Sale.findProductById` exists.
-- `PersonService()` (lines 31-33) creates a `PersonRepository` directly and no code calls it, like the case in V-04. It is in my code and will be removed together with V-04.
 
 ### Possible functional defects (out of scope, to be confirmed by the Technical Leader)
 
