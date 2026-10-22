@@ -1,0 +1,285 @@
+# GRASP Audit — Developer 3 (Xavi Acosta Maldonado)
+
+- **Auditor:** Xavi Acosta Maldonado (`xacosta`), Developer 3
+- **Project:** GameZoneUnicesar 2.0
+- **Branch:** `<fill in>`
+- **Audited commit of `develop`:** `22e6df84fc809dd25f7869e22ab2c58f40e15d78`
+- **Date:** 2026-10-21
+- **Ownership criteria:** `TEAM.md` and the commit history (`git blame`) prevail over the assignment table of the requirement. Only code written by Developer 3 (commits by `xacosta`) is audited in this report.
+- **Method:** the project was not modified. A copy was compiled in `/tmp`, the tests were run and the doubtful scenarios were reproduced before giving each verdict.
+
+---
+
+## 1. Scope
+
+### 1.1 Audited classes and members, by module
+
+**Persistence layer (`persistence` package)**
+
+| Class | Audited members |
+|---|---|
+| `CsvSupport` | Whole class (created by Developer 3) |
+| `ProductRepository` | Exception refactoring: `catch (IOException)` and `PersistenceException(..., e)` blocks, including the write path (line 117) |
+| `PersonRepository` | Exception refactoring: same blocks, including the write path (line 152) |
+| `SaleRepository` | Exception refactoring: same blocks |
+| `AccessoryRepository` | Exception refactoring: same blocks |
+| `PromotionRepository` | Exception refactoring: same blocks |
+| `ReturnRepository` | Exception refactoring: same blocks |
+| `WarrantyRepository` | Exception refactoring: same blocks |
+
+**Tests**
+
+| Class | Audited members |
+|---|---|
+| `ProductRepositoryTest`, `PersonRepositoryTest`, `SaleRepositoryTest`, `AccessoryRepositoryTest`, `PromotionRepositoryTest`, `ReturnRepositoryTest`, `WarrantyRepositoryTest` | Whole class (written by Developer 3) |
+
+### 1.2 Code inside the audited classes that is NOT audited here (written by others)
+
+| File | Lines / code | Author |
+|---|---|---|
+| `ProductRepository` | `productToCsvLine` (62–92); type decisions and creation of `VideoGame` / `Console` (75, 81, 166–169); manual parsing (147–164) | Original author (per `TEAM.md`) |
+| `PersonRepository` | Handling of customers and sellers (105/129 and 172/219) | Original author (per `TEAM.md`) |
+| `SaleRepository` | `loadAll` signature with the `promotions` parameter (160, 169); manual parsing (298, 337–339); own folder creation (131–132); building `Sale` / `SaleDetail` | Original author (per `TEAM.md`) |
+| `AccessoryRepository` | Type decisions (93, 98, 106; 188, 195, 202) | Original author (per `TEAM.md`) |
+| `PromotionRepository` | Type decisions (75, 79, 84; 161, 166, 173) | Original author (per `TEAM.md`) |
+| `ReturnRepository` | Building `Return` and the refund reading (200–202, see V-01) | Original author (per `TEAM.md`) |
+| `WarrantyRepository` | Constructor and the five repositories it holds (45–49, 63–67); reload in `loadAll` (229–235); type decisions and creation (119, 200–203) | Original author (per `TEAM.md`) |
+
+Authorship in this table follows `TEAM.md`. Before delivery, each range must be confirmed with `git blame`; any range that `git blame` attributes to `xacosta` moves to the audited members in 1.1.
+
+### 1.3 Ownership discrepancy: repositories outside the assigned deliverable
+
+`TEAM.md` assigns Developer 3 only `Product`, `Person` and `Sale`. The `Accessory`, `Promotion`, `Return` and `Warranty` repositories were also refactored by Developer 3. To avoid a duplicated audit, Developer 2 should be told so she does not audit that refactoring as well. To be confirmed in the consolidation so that each part is audited exactly once.
+
+---
+
+## 2. Verdict summary
+
+| Pattern | Verdict | Findings |
+|---|---|---|
+| Information Expert | Violation | V-01 |
+| Creator | Correct | — |
+| Controller | Not applicable | — |
+| Low Coupling | Violation | V-04, V-05 |
+| High Cohesion | Violation | V-04 (not duplicated) |
+| Polymorphism | Violation | V-02 |
+| Pure Fabrication | Violation | V-03, V-06 |
+| Indirection | Correct | — |
+| Protected Variations | Violation | V-02 (not duplicated) |
+
+---
+
+## 3. Pattern sections
+
+### 3.1 Information Expert — Violation
+
+**Where it is correct**
+- Each repository knows the format of its own file, for example `ProductRepository.productToCsvLine` (lines 62–92).
+- `CsvSupport` concentrates validation (`safe`, line 30; `requireValidPrice`, line 63).
+
+**Violation:** V-01.
+
+### 3.2 Creator — Correct
+
+**Where it is correct**
+- Repositories create domain objects because they hold the data to initialize them: `new VideoGame` / `new Console` (`ProductRepository`, lines 167, 169), `new Sale` / `new SaleDetail` (`SaleRepository`), `new Return` (`ReturnRepository`), `new BasicWarranty` / `new ExtendedWarranty` (`WarrantyRepository`, lines 201, 203).
+- `WarrantyRepository` receives its dependencies through the constructor (lines 63–67) instead of creating them.
+
+**Observation not registered:** `ProductService:30`, `PersonService:32` and `WarrantyService:41–46` create concrete repositories with `new`. It is outside the persistence layer; reported in section 5.
+
+### 3.3 Controller — Not applicable
+
+- A search for `System.out` / `Scanner` in `persistence` returns 0 results, and no class imports `ui`, `service` or `validation`. The layer does not handle system events.
+
+### 3.4 Low Coupling — Violation
+
+**Where it is correct**
+- The layer depends only on `model`, `exceptions` and `java.io`.
+- The file path is injected through the constructor (`ProductRepository:46`).
+- The tests use `@TempDir` and have no reference to `data/`.
+
+**Violations:** V-04, V-05.
+
+**Observation not registered:** there are no interfaces, so services depend on concrete classes (`SaleService:33`, `ProductService:23`). See 3.8.
+
+### 3.5 High Cohesion — Violation
+
+**Where it is correct**
+- Each repository serves a single aggregate (except the observation below).
+- `CsvSupport` focuses on the CSV format.
+
+**Violation:** V-04. `WarrantyRepository` also orchestrates the loading of five other aggregates besides warranties. It is registered once, under Low Coupling, and not duplicated here.
+
+**Observation not registered:** `PersonRepository` handles two aggregates (customers and sellers, lines 105/129 and 172/219).
+
+### 3.6 Polymorphism — Violation
+
+**Where it is correct**
+- No correct case was recorded in this layer.
+
+**Violation:** V-02.
+
+### 3.7 Pure Fabrication — Violation
+
+**Where it is correct**
+- `CsvSupport` is a well-made pure fabrication: a `final` class with a private constructor (lines 14–16), created to avoid repeating validations.
+
+**Violations:** V-03, V-06.
+
+### 3.8 Indirection — Correct
+
+- Services touch the disk only through repositories (`SaleService:53,135`, `ProductService:43`).
+- The 15 `catch (IOException)` keep `java.io` from rising to the upper layers.
+
+**Observation not registered:** the intermediary is a concrete class, without an interface. It is the same limit noted in 3.4 and 3.9, so it is not registered again here.
+
+### 3.9 Protected Variations — Violation
+
+The same code that breaks Polymorphism exposes the layer to a foreseeable change (new subtypes). It is registered **once**, as V-02, and not duplicated here.
+
+**Where it is correct**
+- Strong protection against I/O failures and corrupt data: 15 `catch (IOException)`, 15 `PersistenceException(..., e)` that keep the cause, and 0 residual `RuntimeException`.
+- The tests verify it with 15 `assertInstanceOf(IOException...)`.
+
+**Observations not registered**
+- The layer does not protect against a change of storage technology, because there is no interface to move from CSV to another one.
+- The protection breaks when the exception reaches the callers (FD-2, H8 and H9). They are reported in sections 5 and 6.
+
+---
+
+## 4. Violations
+
+### V-01 — Domain arithmetic in `ReturnRepository`
+
+| Field | Content |
+|---|---|
+| **ID** | V-01 |
+| **Pattern** | Information Expert |
+| **Module** | Persistence (Returns) |
+| **Evidence** | `ReturnRepository:200–202`: `warrantyPart = storedRefund - result.getRefundAmount()`. The bug was reproduced before: a refund of `100.0` became `200.0` after reloading. |
+| **Explanation** | The expert on refunds is `Return`, not the persistence class. The code is a patch for a real bug caused by the constructor of `Return`. |
+| **Consequence** | A rule of the domain lives in the repository, and a change in how `Return` computes the refund can break the reload again without any compile error. |
+| **Proposed solution** | Fix the cause in `Return` (its constructor, or a way to restore the stored amount) and remove the arithmetic from the repository. **Effect on the user:** none. The reload already returns the correct amount today because of the patch, so the refund the user sees must stay exactly the same, and `refundIsNotDoubledAfterReload` must keep passing. Under that condition the correction only moves the logic and remains an Information Expert violation. If the fix turns out to change the refund calculated when a return is registered, it becomes a functional change and moves to section 6. Pattern applied: Information Expert. |
+| **Code of another member** | Yes. The `Return` constructor (root cause) belongs to another author. **Developer 3's part:** remove the arithmetic from `ReturnRepository` once the cause is fixed and keep `refundIsNotDoubledAfterReload`. Boundary finding. |
+
+### V-02 — Decisions by type with conditionals
+
+| Field | Content |
+|---|---|
+| **ID** | V-02 |
+| **Pattern** | Polymorphism (also affects Protected Variations; registered once) |
+| **Module** | Persistence (Product, Accessory, Promotion, Warranty) |
+| **Evidence** | `ProductRepository:75,81` and `166,168`; `AccessoryRepository:93,98,106` and `188,195,202`; `PromotionRepository:75,79,84` and `161,166,173`; `WarrantyRepository:119` and `200,202`. They use `instanceof` and text strings. |
+| **Explanation** | The repositories decide by type with conditionals instead of letting each subtype define how it is written and read. |
+| **Consequence** | Adding a subtype forces an edit in the repository. Severity is medium because there are few subtypes and they are stable. |
+| **Proposed solution** | Let each subtype provide its own CSV representation, so the repository does not branch on type. The file format must stay exactly the same. Pattern applied: Polymorphism, with Protected Variations as a result. |
+| **Code of another member** | Yes. The conditionals belong to the original design of each repository. **Developer 3's part:** none identified in production code; the round-trip tests per subtype must keep passing. Boundary finding. |
+
+### V-03 — Incomplete extraction into `CsvSupport`
+
+| Field | Content |
+|---|---|
+| **ID** | V-03 |
+| **Pattern** | Pure Fabrication |
+| **Module** | Persistence (Product, Person, Sale) |
+| **Evidence** | The read/write loop is repeated in each repository (15 `BufferedReader`/`BufferedWriter` blocks). Only `PersonRepository.writeLines` (line 151) extracts something, and it is private. `CsvSupport.parse*` exists, but `ProductRepository:147–164` and `SaleRepository:298, 337–339` parse by hand. There are three ways to create the target folder: the helper (4 repositories), own code (`SaleRepository:131–132`) and none (Product and Person, see FD-1). |
+| **Explanation** | `CsvSupport` was created as a fabrication to avoid repetition, but the extraction was not completed. |
+| **Consequence** | A change in the file format or in the error reporting must be repeated in each copy, and the copies can drift apart (FD-1 is an example). |
+| **Proposed solution** | Move the shared read/write loop, the parsing and the folder creation into `CsvSupport`, and make every repository use them. The messages and the file format must stay the same. Pattern applied: Pure Fabrication. |
+| **Code of another member** | Partly. `CsvSupport` is Developer 3's, and **Developer 3's part** is to complete it. The hand parsing in Product and Sale belongs to the original authors, who migrate it to the helper. |
+
+### V-04 — `WarrantyRepository` coupled to five repositories
+
+| Field | Content |
+|---|---|
+| **ID** | V-04 |
+| **Pattern** | Low Coupling (also affects High Cohesion; registered once) |
+| **Module** | Persistence (Warranties) |
+| **Evidence** | `WarrantyRepository:45–49` keeps 5 repositories; `229–235` reloads all of them on every `loadAll`. It imports 9 model classes. `Main:42–47` acknowledges it with a comment. |
+| **Explanation** | The repository is the point of highest coupling in the layer. Besides reading warranties, it orchestrates the loading of five other aggregates. |
+| **Consequence** | A change in any of the five repositories can break warranty loading, and every read reloads everything from disk. |
+| **Proposed solution** | Make the warranty loader depend only on what it needs (for example, receive the already loaded data) instead of holding and reloading five repositories. Pattern applied: Low Coupling. |
+| **Code of another member** | Yes. The design belongs to the author of `WarrantyRepository`, and the wiring in `Main` to the Technical Leader. **Developer 3's part:** none of the coupling design. Only to adapt `WarrantyRepositoryTest` and the exception wrapping in the reload if the constructor or `loadAll` changes. Boundary finding, to be unified in the consolidation with the Technical Leader's boundary observation on `WarrantyRepository`. |
+
+### V-05 — Unused parameter in `SaleRepository.loadAll`
+
+| Field | Content |
+|---|---|
+| **ID** | V-05 |
+| **Pattern** | Low Coupling |
+| **Module** | Persistence (Sales) |
+| **Evidence** | `SaleRepository:169` declares `promotions` (documented at line 160) and never uses it. It appears only in lines 160 and 169. Per the Technical Leader's report (V-07), `SaleRepositoryTest` calls it at lines 66 and 305. |
+| **Explanation** | The repository, and everything that calls it, depends on `Promotion` without needing it. |
+| **Consequence** | Callers must provide promotions just to call `loadAll`, and a change in `Promotion` can break unrelated code. |
+| **Proposed solution** | Remove the parameter, migrating the callers first so the build keeps compiling. Pattern applied: Low Coupling. |
+| **Code of another member** | Yes. The `loadAll` signature belongs to the Technical Leader (same finding as her V-07), and `WarrantyRepository` calls it. **Developer 3's part:** migrate the calls in `SaleRepositoryTest` (lines 66 and 305) once the version without the parameter exists. Boundary finding, to be unified with her V-07 in the consolidation. |
+
+### V-06 — Duplicated helpers in the tests
+
+| Field | Content |
+|---|---|
+| **ID** | V-06 |
+| **Pattern** | Pure Fabrication |
+| **Module** | Tests |
+| **Evidence** | The helpers `loadFails` and `writeFile` are duplicated in 6 of the 7 test classes. |
+| **Explanation** | Setup and assertion code that belongs to no single test was copied instead of being placed in a shared helper. |
+| **Consequence** | A change in how a corrupt file is written or checked must be repeated in each copy, and the copies can drift apart. |
+| **Proposed solution** | A shared test helper class that owns `loadFails` and `writeFile`, used by the seven test classes. Test names and assertions must stay the same. Pattern applied: Pure Fabrication. |
+| **Code of another member** | No. |
+
+---
+
+## 5. Boundary observations reported for the consolidation
+
+These involve code authored by other members and are **not** audited here. They are reported because they break the stability guarantee that the deliverable requires.
+
+| ID | Severity | Owner | Finding | Evidence |
+|---|---|---|---|---|
+| H8 | High | Technical Leader | `Main:30–76` has no `try/catch`, and the services load the CSV files when they are built (`ProductService:43`, `SaleService:53`). | **Reproduced:** with a corrupt `products.csv`, the repository throws the error with line and context, but `Main` lets it out and the JVM ends with `Exception in thread "main"`. |
+| H9 | Medium | Technical Leader | `SaleService:134–146` adds the sale to memory before saving and does not remove it when saving fails. | **Reproduced** with the save forced to fail: stock is restored (10), but 1 phantom sale stays in memory and purchase `[V1]` stays on the customer. |
+
+H8 and H9 are the Technical Leader's code, and she moves them to her own out-of-scope section.
+
+**Other observations**
+1. **Creator:** `ProductService:30`, `PersonService:32` and `WarrantyService:41–46` create concrete repositories with `new` (see 3.2).
+2. **Coverage:** `Accessory`, `Promotion`, `Return` and `Warranty` repositories were refactored by Developer 3 although `TEAM.md` does not assign them (see 1.3).
+3. **Boundary violations:** V-01, V-02, V-03, V-04 and V-05 involve code of other authors. The part that belongs to Developer 3 is stated in each one.
+
+---
+
+## 6. Out-of-scope findings (functional defects, not corrected as GRASP)
+
+Correcting these changes what the user observes, so they are not GRASP violations.
+
+| # | Owner | Defect | Evidence |
+|---|---|---|---|
+| FD-1 | Developer 3 | `ProductRepository` and `PersonRepository` lost the creation of the target folder in the refactoring. The original had it (`ProductRepository`, commit `da4d791`, lines 63–64; `PersonRepository`, lines 58–59 and 84–85). Restoring it changes the behavior: saving works instead of failing. | `ProductRepository:117`, `PersonRepository:152`. **Reproduced:** with a non-existent folder both fail with `PersistenceException`; `Accessory` and `Sale` do create it. |
+| FD-2 | Developer 1 | `PersistenceException extends RuntimeException`, but `TEAM.md` defines it as a subclass of `GameZoneException`. `SaleService` rethrows only `GameZoneException`, so it wraps this one in a generic `RuntimeException`. Correcting it changes which exception the menu catches. | `PersistenceException.java:17`, `SaleService:143–146`. **Reproduced:** `RuntimeException \| cause: PersistenceException`. |
+
+---
+
+## 7. Test audit
+
+**What is correct**
+- All 60 tests pass (seven classes: 7+5+5+5+8+22+8). They were run on the repository code with a JUnit substitute, not with Maven.
+- Every subtype has a round-trip test.
+- `@TempDir` isolates the tests from the real disk.
+- `refundIsNotDoubledAfterReload` protects the `ReturnRepository` bug (V-01).
+
+**What fails**
+
+| ID | Finding |
+|---|---|
+| T1 | No test covers a non-existent folder in `Product` or `Person`. Only `SaleRepositoryTest:131` does, which is why FD-1 went unnoticed. |
+| T2 | There are 0 references to `GameZoneException` in the tests. A single assertion would have detected FD-2. |
+| T3 | No test goes through persistence, service and menu. The requirement "respond without crashing" is shown only at repository level, and H8 shows that at system level it is not met. |
+| T4 | Only 20 message assertions against about 54 corrupt-file cases. Most only check that the exception is thrown, not its content. |
+| T5 | Duplicated helpers in the tests. Registered as V-06. |
+
+---
+
+## 8. Evidence validation status
+
+Every finding has file and line. The ones **reproduced by running the code** are V-01 (the original bug), FD-1, FD-2, H8 and H9. V-02 to V-06 rest on direct reading of the code.
+
+Renumbering from the previous version: H2 → V-01, H3 → V-02, H4 → V-03, H5 → V-04, H6 → V-05, T5 → V-06, H1 → FD-1, H7 → FD-2. H8 and H9 keep their IDs and go back to their owner.
