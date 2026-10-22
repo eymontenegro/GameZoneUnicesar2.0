@@ -259,3 +259,59 @@ None of the audited classes receives system events. The services, the repositori
 ### Why no new finding is registered
 
 Each row is the same code seen from a different pattern. Registering it again under Protected Variations would duplicate the finding and the correction. The corrections of V-06 to V-11 are the ones that protect the system against these changes, so Protected Variations is the pattern that justifies them and Polymorphism, Pure Fabrication and Indirection are the mechanisms used.
+
+## 12. Summary of verdicts
+
+| # | Pattern | Verdict | Findings |
+|---|---|---|---|
+| 1 | Information Expert | Violation | V-01, V-02 |
+| 2 | Creator | Correct | none |
+| 3 | Controller | Not applicable | none |
+| 4 | Low Coupling | Violation | V-03, V-04 |
+| 5 | High Cohesion | Violation | V-05 |
+| 6 | Polymorphism | Violation | V-06, V-07, V-08, V-09 |
+| 7 | Pure Fabrication | Violation | V-10 |
+| 8 | Indirection | Violation | V-11 |
+| 9 | Protected Variations | Violation | covered by V-06 to V-11 |
+
+## 13. List of violations
+
+| ID | Pattern | Class and method | Module | Changes code of another developer |
+|---|---|---|---|---|
+| V-01 | Information Expert | `ReturnService.findProductInSale` | Returns | Yes, Technical Leader (`Sale`) |
+| V-02 | Information Expert | `WarrantyService.listWarrantiesExpiringSoon` | Warranties | Yes, Developer 1 (`Warranty`) |
+| V-03 | Low Coupling | `WarrantyRepository` (constructor and `loadAll`) | Warranties | Yes, Technical Leader (`Main`, possibly `SaleService`) |
+| V-04 | Low Coupling | `WarrantyService()` | Warranties | No |
+| V-05 | High Cohesion | `ReturnService.generateMonthlyBalance` | Returns | Yes, Technical Leader (`SubMenu`, `Main`) |
+| V-06 | Polymorphism | `AccessoryService.matchesType` | Accessories | Yes, Developer 1 (`Accessory` and subclasses) |
+| V-07 | Polymorphism | `AccessoryRepository.accessoryToCsvLine`, `csvLineToAccessory` | Accessories | No |
+| V-08 | Polymorphism | `PromotionRepository.promotionToCsvLine`, `csvLineToPromotion` | Promotions | No |
+| V-09 | Polymorphism | `WarrantyRepository.warrantyToCsvLine`, `csvLineToWarranty` | Warranties | No |
+| V-10 | Pure Fabrication | File reading and writing in five repositories | All | No |
+| V-11 | Indirection | Services bound to concrete repositories | All | No |
+
+## 14. Findings reported to the Technical Leader
+
+### Boundary findings
+
+These findings need a change in code owned by another developer. The corrections that are mine and the parts that belong to others are:
+
+- **V-01:** I change `ReturnService.findProductInSale`; the Technical Leader adds `Sale.findProductById`.
+- **V-02:** I change `WarrantyService.listWarrantiesExpiringSoon`; Developer 1 adds `Warranty.expiresBetween`.
+- **V-03:** I change `WarrantyRepository`; the Technical Leader adapts the construction order in `Main` (and `SaleService` if needed).
+- **V-05:** I create `MonthlyBalanceService`; the Technical Leader updates `SubMenu` (line 524) and `Main`.
+- **V-06:** I change `AccessoryService.matchesType`; Developer 1 adds `getAccessoryKind()` to `Accessory` and its subclasses.
+
+### Problems found in code of other developers (not audited here)
+
+- `ProductRepository` (lines 117 and 192) and `SaleRepository` (lines 137 and 212) repeat the file reading and writing code described in V-10.
+- `ReturnRepository.findProductInSale` (lines 138-149) repeats the search that V-01 describes in `ReturnService`. It is in my code and will be fixed together with V-01 once `Sale.findProductById` exists.
+- `PersonService()` (lines 31-33) creates a `PersonRepository` directly and no code calls it, like the case in V-04. It is in my code and will be removed together with V-04.
+
+### Possible functional defects (out of scope, to be confirmed by the Technical Leader)
+
+These are not corrected in this requirement because fixing them would change what the user sees.
+
+- `ReturnService.registerReturn`, lines 112-115: stock is restored with `saleService.restoreStock(product, 1)`, always one unit, although `SaleDetail` stores a quantity. If a product was sold in quantity greater than one, the stock restored may be lower than the stock sold. The code comment itself mentions this.
+- `ReturnService` reports errors with `IllegalArgumentException` and English messages (lines 47, 52, 64, 79 and others), while the rest of the system uses the typed exceptions of Requirement 6. Changing it would change how `Menu` treats the error and the message the user reads.
+- `WarrantyService.findById` and `findWarrantyByProduct` (lines 94-119) return `null` when nothing is found, while the other services throw `ResourceNotFoundException`. Changing it would change the behavior seen by the caller.
