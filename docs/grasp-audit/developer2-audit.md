@@ -26,3 +26,51 @@
 - **Violation:** the code breaks the pattern at one or more points, and a concrete class, method and line range can be cited.
 - **Correct:** the pattern is applied, and the class and method that apply it can be cited.
 - **Not applicable:** there is no point of application in the audited code, and the reason is explained.
+
+## 3. Information Expert
+
+**Verdict: Violation** (2 findings). The pattern is correctly applied in other places, listed below.
+
+### Correct applications
+
+- `Client.addPurchase` (`Client.java`, line 41) owns the purchase history, and `PersonService.registerPurchase` (line 172) delegates to it instead of editing the list itself.
+- `ReturnService.generateMonthlyBalance` asks `Sale::calculateFinalTotal` (line 163) and `Return::getRefundAmount` (line 171) for the amounts instead of recomputing them.
+- `AccessoryService.findAccessoriesCompatibleWith` asks each accessory `isCompatibleWith(consoleId)` (line 150) instead of reading its internal list of consoles.
+- `ReturnService.registerReturn` asks `sale.canBeReturned()` (line 78) for the 30-day rule instead of computing it.
+
+### Violations
+
+| Field | Content |
+|---|---|
+| ID | V-01 |
+| Pattern | Information Expert |
+| Module | Returns (Requirement 3) |
+| Evidence | `ReturnService.findProductInSale`, lines 56-65: the loop `for (SaleDetail detail : sale.getDetails())` reads `detail.getProduct().getId()` to look for a product. `Sale` has no method to look up one of its products. |
+| Explanation | `Sale` owns the list of sale lines, so it is the expert on which products it contains. `ReturnService` reaches through `Sale`, then `SaleDetail`, then `Product` to answer a question that belongs to `Sale`. |
+| Consequence | If `Sale` changes how it stores its lines (for example, grouping repeated products), `ReturnService` breaks. Any other class that needs the same search would repeat the loop. |
+| Proposed solution | Add `Sale.findProductById(String productId)` (Information Expert) and make `ReturnService.findProductInSale` call it, keeping the same exception and the same message when the product is not in the sale. |
+| Code of another developer | Yes. `Sale` belongs to the Technical Leader, who would add the new method. |
+
+| Field | Content |
+|---|---|
+| ID | V-02 |
+| Pattern | Information Expert |
+| Module | Warranties (Requirement 4) |
+| Evidence | `WarrantyService.listWarrantiesExpiringSoon`, lines 145-148: the service reads `w.getEndDate()` and compares it with `today` and `limit`. In the same class, `listActiveWarranties` (line 132) asks the warranty with `w.isActive(today)` (`Warranty.java`, line 63). |
+| Explanation | The rule about when a warranty is valid is split: `Warranty` answers "is it active?" but the service decides "does it expire soon?" using the warranty's end date. The warranty is the expert on its own dates. |
+| Consequence | If the way the end date is calculated or treated changes (for example, a warranty with no end date), the change has to be made in two classes. |
+| Proposed solution | Add `Warranty.expiresBetween(LocalDate from, LocalDate to)` with the same comparison and make the service call it. The result must stay identical. |
+| Code of another developer | Yes. `Warranty` belongs to Developer 1. |
+
+## 4. Creator
+
+**Verdict: Correct.**
+
+Each creation happens in a class that holds the list of the created objects and has the data needed to build them:
+
+- `PersonService.registerClient` creates the `Client` (line 89) and stores it in the `clients` list it manages.
+- `AccessoryService.registerController`, `registerCable` and `registerMemory` create the accessories (lines 71, 79 and 87) and add them to the `accessories` list it manages.
+- `PromotionService` creates each promotion (lines 68, 76 and 84), `WarrantyService` creates each warranty (lines 74 and 82) and `ReturnService.registerReturn` creates the `Return` (line 109). In each case the service keeps the corresponding list.
+- The repositories (`PersonRepository` lines 195 and 239, `AccessoryRepository` lines 193-212, `PromotionRepository` lines 164-177, `WarrantyRepository` lines 201-203, `ReturnRepository` line 197) create objects only to rebuild the ones they read from the files. They hold the initializing data, so this is also acceptable.
+
+No instance is created by a class that has neither the data nor the container.
