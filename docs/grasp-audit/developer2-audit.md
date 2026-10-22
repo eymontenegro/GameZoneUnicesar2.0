@@ -237,3 +237,25 @@ None of the audited classes receives system events. The services, the repositori
 | Consequence | A service cannot be created without a real repository that reads `data/*.csv`, so the business rules cannot be tested alone (which is why no service has a test). Changing the storage (for example, a database) would require editing the five services. |
 | Proposed solution | Create one small interface per module in `persistence` (for example `AccessoryStore` with `loadAll` and `saveAll`), implemented by the existing repositories. Each service depends on its interface. `Main` still compiles unchanged because it passes the same repository objects. |
 | Code of another developer | No. |
+
+## 11. Protected Variations
+
+**Verdict: Violation.** The unprotected points of variation are the same fragments already registered above, so no new ID is created (see the cross-reference table below).
+
+### Correct applications
+
+- `AccessoryService.findAccessoriesCompatibleWith` (lines 148-151) depends on the `ConsoleCompatible` interface. A new accessory that is compatible with consoles needs no change in the service.
+- `PromotionService.findBestPromotionFor` (lines 141-161) depends on `Promotion.calculateDiscount`. A new kind of promotion needs no change in the service.
+- The validation rules are collected in the validators (for example `WarrantyValidator.validateDaysAhead`, line 48), so a change in a rule is made in one place and not in each service.
+
+### Points of variation that are not protected
+
+| Foreseeable change | Where the system breaks | Registered as |
+|---|---|---|
+| A new accessory, promotion or warranty type | Type conditionals in `AccessoryService.matchesType` and in the CSV code of `AccessoryRepository`, `PromotionRepository` and `WarrantyRepository` | V-06, V-07, V-08, V-09 |
+| A change in how files are read or written | The same file code repeated in five repositories | V-10 |
+| A change of storage technology | Services bound to the concrete CSV repositories | V-11 |
+
+### Why no new finding is registered
+
+Each row is the same code seen from a different pattern. Registering it again under Protected Variations would duplicate the finding and the correction. The corrections of V-06 to V-11 are the ones that protect the system against these changes, so Protected Variations is the pattern that justifies them and Polymorphism, Pure Fabrication and Indirection are the mechanisms used.
