@@ -74,3 +74,42 @@ Each creation happens in a class that holds the list of the created objects and 
 - The repositories (`PersonRepository` lines 195 and 239, `AccessoryRepository` lines 193-212, `PromotionRepository` lines 164-177, `WarrantyRepository` lines 201-203, `ReturnRepository` line 197) create objects only to rebuild the ones they read from the files. They hold the initializing data, so this is also acceptable.
 
 No instance is created by a class that has neither the data nor the container.
+
+## 5. Controller
+
+**Verdict: Not applicable.**
+
+None of the audited classes receives system events. The services, the repositories and `Person`, `Client` and `Seller` contain no console input or output (there is no `Scanner` or `System.out` in them). The events of the system are received by `Menu` and `SubMenu`, which belong to the Technical Leader and call the services, for example `SubMenu` (line 240) calls `personService.registerClient(...)`. The audited services are the business layer that the controller delegates to, not controllers themselves.
+
+## 6. Low Coupling
+
+**Verdict: Violation** (2 findings).
+
+### Correct applications
+
+- `ReturnRepository.loadAll(List<Sale> sales)` (line 219) receives the sales it needs as a parameter instead of loading them itself.
+- `AccessoryService`, `PromotionService`, `PersonService` and `ReturnService` receive their dependencies through the constructor, and each one depends only on its own repository (and on `SaleService` in the case of `ReturnService`).
+
+### Violations
+
+| Field | Content |
+|---|---|
+| ID | V-03 |
+| Pattern | Low Coupling |
+| Module | Warranties (Requirement 4) |
+| Evidence | `WarrantyRepository`: five repository fields (lines 45-49), a constructor that requires all of them (lines 63-102) and `loadAll` (lines 229-235), which loads clients, sellers, products, accessories, promotions and then calls `saleRepository.loadAll(clients, sellers, products, accessories, promotions)`. `Main` (line 60) builds it with those five repositories. |
+| Explanation | To resolve the sale and the product of each warranty, the repository depends on five other repositories and must know how each one is loaded and in which order. `ReturnRepository.loadAll(List<Sale> sales)` solves the same need by receiving the sales as a parameter. |
+| Consequence | Loading warranties reads six CSV files again. The warranties end up referencing their own copies of sales, clients and products, not the objects held by `SaleService`, `PersonService` and `ProductService`. Any change in the signature of `SaleRepository.loadAll` breaks `WarrantyRepository`. |
+| Proposed solution | Make `WarrantyRepository.loadAll` receive the already loaded sales and products, as `ReturnRepository` does, and remove its five repository dependencies. Because `SaleService` needs `WarrantyService` when it is built, the warranties would have to be loaded after the sales exist. |
+| Code of another developer | Yes. The construction order is in `Main` (Technical Leader), and possibly in `SaleService`. |
+
+| Field | Content |
+|---|---|
+| ID | V-04 |
+| Pattern | Low Coupling |
+| Module | Warranties (Requirement 4) |
+| Evidence | `WarrantyService()`, lines 40-48: it creates `new WarrantyRepository(new SaleRepository(), new ProductRepository(), new PersonRepository(), new AccessoryRepository(), new PromotionRepository())`. No code calls this constructor: `Main` (line 74) uses `new WarrantyService(warrantyRepository)`, and no other `new WarrantyService()` exists in the project. |
+| Explanation | The service is tied to six concrete classes when it is built, although it only needs a `WarrantyRepository`. |
+| Consequence | Any change to the constructor of those repositories breaks `WarrantyService`, and the constructor is dead code that hides the real dependencies. |
+| Proposed solution | Remove the unused no-argument constructor. The behavior of the system does not change. |
+| Code of another developer | No. |
