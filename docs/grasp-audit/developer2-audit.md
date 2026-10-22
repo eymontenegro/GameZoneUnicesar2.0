@@ -23,6 +23,29 @@
 - The low-level file handling of the repositories (`CsvSupport` and the wrapping of `IOException` in `PersistenceException`) was refactored by Developer 3 in Requirement 6, according to `TEAM.md`. Findings that depend on that refactor are reported to the Technical Leader as boundary findings.
 - Methods that other developers added to classes outside this scope (for example `Sale.canBeReturned` or `ProductService.restoreStock`) are not audited here.
 
+### Lines I wrote in files owned by other developers (git blame at 22e6df84fc809dd25f7869e22ab2c58f40e15d78)
+
+My scope includes the use of exceptions and validators in services and repositories. By `git blame`, I wrote the following lines in `SaleService` (Technical Leader) and `ProductService` (Developer 1). They are listed so that none of them is left out of the coverage. I audit only the exception and validation code in them; the design of the rest of each method is audited by its owner.
+
+`SaleService`, 21 lines:
+
+- Imports: lines 3-5 (exceptions) and 16-17 (validators).
+- `findProductOrAccessoryById`: line 65 (`InvalidDataException` for a null product id) and line 75 (`ResourceNotFoundException` in `orElseThrow`).
+- `processSale`: lines 81-82 (client lookup with `personService.findClientById`), 84-85 (`SaleValidator.validateSaleData`), 89 (`ProductValidator.validateStockAvailability`) and 143-145 (`instanceof GameZoneException` check).
+- `findById`: line 169 (`InvalidDataException` for a null sale id), lines 172, 174 and 177 (`found` variable and the search that returns null) and lines 179-180 (`SaleValidator.validateSaleExists`).
+
+`ProductService`, 26 lines:
+
+- Imports: lines 3-5 (exceptions) and 7 (`ProductValidator`).
+- Constructor `ProductService(ProductRepository)`: line 40 (null repository check).
+- `validateBasicData`: lines 53-55 (Javadoc), 58 (`ProductValidator.validateProductData`) and 60 (`BusinessRuleException` for a duplicated id).
+- `registerVideoGame`: line 96 (platform check). `registerConsole`: line 119 (brand check).
+- `findById`: lines 170-171 (Javadoc), 175 (null id check), 177 and 180-181 (`found` variable) and 184-185 (`ProductValidator.validateProductExists`).
+- `updateStock`: lines 194-195 (Javadoc) and 199 (negative quantity check).
+- `restoreStock`: lines 213-214 (Javadoc) and 218 (negative quantity check). The rest of the method is not mine; the Technical Leader audits its design.
+
+Lines 200-202 of `ReturnRepository` (the domain arithmetic that Xavi reported as H2) were written by `xacosta` in commit `8b771b5a`, not by me. I do not audit them.
+
 ## 2. Verdict criteria
 
 - **Violation:** the code breaks the pattern at one or more points, and a concrete class, method and line range can be cited.
