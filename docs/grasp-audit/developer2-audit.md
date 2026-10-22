@@ -193,3 +193,47 @@ None of the audited classes receives system events. The services, the repositori
 | Consequence | A third warranty type would be written to the file with the wrong tag without any error, and the data would be corrupted when the file is read again. |
 | Proposed solution | Same solution as V-07: one CSV format class per warranty type, and an error when the type is not registered. For the existing types the file content stays the same. |
 | Code of another developer | No. |
+
+## 9. Pure Fabrication
+
+**Verdict: Violation** (1 finding).
+
+### Correct applications
+
+- `AccessoryValidator`, `PromotionValidator`, `WarrantyValidator` and `SaleValidator` are pure fabrications: the validation rules belong to no domain class, so they live in final classes with a private constructor and no state (for example `AccessoryValidator.java`, lines 13-17). They never touch files or repositories.
+- `PersonService.validateClientData` (line 61), `AccessoryService.validateBasicData` (line 49) and `PromotionService.validateCommonPromotionData` (line 51) only coordinate calls to those validators.
+
+### Violations
+
+| Field | Content |
+|---|---|
+| ID | V-10 |
+| Pattern | Pure Fabrication (it also lowers High Cohesion; Pure Fabrication guides the correction) |
+| Module | People, Accessories, Promotions, Returns and Warranties (every repository in the scope) |
+| Evidence | The same code to write a file is repeated in five repositories: `PersonRepository.writeLines`, lines 151-161; `AccessoryRepository.saveAll`, lines 143-154; `PromotionRepository.saveAll`, lines 118-129; `ReturnRepository.saveAll`, lines 117-128; `WarrantyRepository.saveAll`, lines 151-162. Each opens a `BufferedWriter`, writes every line and wraps `IOException` in `PersistenceException`. The reading loop (file exists, skip blank lines, count the line number) is repeated in `loadAll` / `loadClients` / `loadSellers` of the same five classes (for example `AccessoryRepository`, lines 229-252, and `PromotionRepository`, lines 195-218). |
+| Explanation | Reading and writing text files line by line is a responsibility that belongs to no domain class, and no helper class exists for it. Each repository implements it again next to its own job of converting objects to CSV text. |
+| Consequence | Any change in how files are handled (encoding, atomic writing, a new error message) must be repeated in each repository. Each repository has two reasons to change: the CSV format and the file mechanics. |
+| Proposed solution | Create a helper class `CsvFile` in `persistence` (Pure Fabrication) that, given a path, writes a list of lines and reads the lines with their numbers. The five repositories delegate to it and keep their own error messages and the same files. |
+| Code of another developer | No for the five repositories above. `ProductRepository` (lines 117 and 192) and `SaleRepository` (lines 137 and 212) repeat the same code, but they belong to Developer 1 and to the Technical Leader. They are reported in section 14, not audited here. |
+
+## 10. Indirection
+
+**Verdict: Violation** (1 finding).
+
+### Correct applications
+
+- `ReturnRepository.loadAll(List<Sale> sales)` (line 219) receives the sales as a parameter, so the repository does not know where they come from.
+- The validators sit between the services and the validation rules: the services call `AccessoryValidator`, `PromotionValidator` and `WarrantyValidator` and do not contain the rules themselves.
+
+### Violations
+
+| Field | Content |
+|---|---|
+| ID | V-11 |
+| Pattern | Indirection |
+| Module | People, Accessories, Promotions, Returns and Warranties (services) |
+| Evidence | Every service holds a concrete repository class and loads its data from the files in its constructor: `PersonService`, lines 25 and 40-48 (`repository.loadClients()`, `repository.loadSellers()`); `AccessoryService`, lines 29 and 37-41; `PromotionService`, lines 31 and 39-43; `WarrantyService`, lines 34 and 56-60; `ReturnService`, lines 28 and 37-43. No interface exists between a service and its repository. `src/test` contains only the seven `*RepositoryTest` classes and no service test. |
+| Explanation | The services talk directly to the CSV implementation. There is no intermediate abstraction that separates the business rules from the way data is stored. |
+| Consequence | A service cannot be created without a real repository that reads `data/*.csv`, so the business rules cannot be tested alone (which is why no service has a test). Changing the storage (for example, a database) would require editing the five services. |
+| Proposed solution | Create one small interface per module in `persistence` (for example `AccessoryStore` with `loadAll` and `saveAll`), implemented by the existing repositories. Each service depends on its interface. `Main` still compiles unchanged because it passes the same repository objects. |
+| Code of another developer | No. |
