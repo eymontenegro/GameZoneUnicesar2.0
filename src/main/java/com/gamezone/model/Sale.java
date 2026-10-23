@@ -1,7 +1,6 @@
 package com.gamezone.model;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -124,6 +123,23 @@ public class Sale {
     }
 
     /**
+     * Creates a sale line for the given product and quantity, using the current
+     * price of the product, and adds it to this sale. The sale is the creator of
+     * its lines because it aggregates them.
+     *
+     * @param product the product being sold
+     * @param quantity the number of units sold
+     * @return the sale line that was created and added
+     * @throws IllegalArgumentException if the line data is invalid (as validated by {@link SaleDetail})
+     */
+    public SaleDetail addItem(Product product, int quantity) {
+        Objects.requireNonNull(product, "Product cannot be null.");
+        SaleDetail detail = new SaleDetail(product, quantity, product.getPrice());
+        addDetail(detail);
+        return detail;
+    }
+
+    /**
      * Adds an additional cost to the sale (e.g. extended warranty cost).
      *
      * @param amount the additional cost to add
@@ -154,6 +170,52 @@ public class Sale {
      */
     public double calculateTotal() {
         return calculateSubtotal();
+    }
+
+    /**
+     * Returns the total number of units sold in this sale, that is, the sum of
+     * the quantity of every line item.
+     *
+     * @return total units of the sale, or 0 when the sale has no details
+     */
+    public int getTotalUnits() {
+        int totalUnits = 0;
+        for (SaleDetail detail : details) {
+            if (detail != null) {
+                totalUnits += detail.getQuantity();
+            }
+        }
+        return totalUnits;
+    }
+
+    /**
+     * Returns the proportion of the gross subtotal that was discounted
+     * (discount amount divided by subtotal).
+     *
+     * @return the discount ratio, or 0.0 when the subtotal is not positive
+     */
+    public double getDiscountRatio() {
+        double subtotal = calculateSubtotal();
+        return (subtotal > 0) ? (discountAmount / subtotal) : 0.0;
+    }
+
+    /**
+     * Looks up a product among the lines of this sale.
+     *
+     * @param productId the identifier of the product to look for
+     * @return the product with that identifier, or null if the sale does not contain it
+     */
+    public Product findProductById(String productId) {
+        if (productId == null) {
+            return null;
+        }
+        for (SaleDetail detail : details) {
+            if (detail != null && detail.getProduct() != null
+                    && productId.equals(detail.getProduct().getId())) {
+                return detail.getProduct();
+            }
+        }
+        return null;
     }
 
     /**
@@ -191,47 +253,5 @@ public class Sale {
      */
     public boolean canBeReturned() {
         return canBeReturned(LocalDate.now());
-    }
-
-    /**
-     * Generates a formatted sale receipt string in Spanish showing breakdown
-     * of subtotal, applied promotion discount, extended warranty costs, and final total.
-     *
-     * @return formatted receipt text
-     */
-    public String generateReceipt() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-        StringBuilder receipt = new StringBuilder();
-
-        receipt.append("=========================================\n");
-        receipt.append("          GAMEZONE UNICESAR              \n");
-        receipt.append("          RECIBO DE VENTA                \n");
-        receipt.append("=========================================\n");
-        receipt.append("ID Venta: ").append(id).append("\n");
-        receipt.append("Fecha: ").append(date.format(formatter)).append("\n");
-        receipt.append("Cliente: ").append(client.getName()).append(" (ID: ").append(client.getId()).append(")\n");
-        receipt.append("Vendedor: ").append(seller.getName()).append(" (Código: ").append(seller.getEmployeeCode()).append(")\n");
-        receipt.append("-----------------------------------------\n");
-        receipt.append("DETALLE DE PRODUCTOS:\n");
-
-        for (SaleDetail detail : details) {
-            receipt.append(String.format(" - %s x%d @ $%.2f = $%.2f\n",
-                    detail.getProduct().getTitle(),
-                    detail.getQuantity(),
-                    detail.getUnitPrice(),
-                    detail.getSubtotal()));
-        }
-
-        double subtotal = calculateSubtotal();
-        receipt.append("-----------------------------------------\n");
-        receipt.append(String.format("Subtotal Productos:     $%.2f\n", subtotal));
-        receipt.append(String.format("Promoción Aplicada:     %s\n", appliedPromotionName));
-        receipt.append(String.format("Descuento Promocional: -$%.2f\n", discountAmount));
-        receipt.append(String.format("Garantías Extendidas:  +$%.2f\n", additionalCosts));
-        receipt.append("-----------------------------------------\n");
-        receipt.append(String.format("TOTAL FINAL:            $%.2f\n", calculateFinalTotal()));
-        receipt.append("=========================================\n");
-
-        return receipt.toString();
     }
 }

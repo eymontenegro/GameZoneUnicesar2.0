@@ -30,7 +30,7 @@ import java.util.Map;
  * is reported with the file name and line number instead of being skipped,
  * so a damaged line is never silently lost when the file is saved again.</p>
  */
-public class SaleRepository {
+public class SaleRepository implements SaleStorage {
 
     private static final String DEFAULT_FILE = "data/sales.csv";
     private static final int COLUMNS = 9;
@@ -115,6 +115,7 @@ public class SaleRepository {
      *         values that cannot be stored
      * @throws PersistenceException if an I/O error occurs while writing
      */
+    @Override
     public void saveAll(List<Sale> sales) {
         if (sales == null) {
             throw new IllegalArgumentException("La lista de ventas no puede ser nula");
@@ -146,6 +147,28 @@ public class SaleRepository {
     }
 
     /**
+     * Loads all sales from the CSV file.
+     *
+     * @param clients     list of system clients
+     * @param sellers     list of system sellers
+     * @param products    list of main products (video games and consoles)
+     * @param accessories list of accessories
+     * @param promotions  ignored; sales do not need promotions to be rebuilt
+     * @return a reconstructed list of {@link Sale} objects
+     * @deprecated the {@code promotions} parameter is never used. Use
+     *             {@link #loadAll(List, List, List, List)}. This overload is kept only so
+     *             existing callers keep compiling and will be removed once they migrate.
+     */
+    @Deprecated
+    public List<Sale> loadAll(List<Client> clients,
+                              List<Seller> sellers,
+                              List<? extends Product> products,
+                              List<? extends Product> accessories,
+                              List<? extends Promotion> promotions) {
+        return loadAll(clients, sellers, products, accessories);
+    }
+
+    /**
      * Loads and reconstructs all sales from the CSV file. If the file does not
      * exist yet (first run), returns an empty list. Blank lines are ignored.
      * <p>
@@ -157,16 +180,15 @@ public class SaleRepository {
      * @param sellers     list of system sellers
      * @param products    list of main products (video games and consoles)
      * @param accessories list of accessories
-     * @param promotions  list of active/registered promotions
      * @return a reconstructed list of {@link Sale} objects
      * @throws PersistenceException if an I/O error occurs while reading, or the
      *         file contains a malformed line or a reference that cannot be resolved
      */
+    @Override
     public List<Sale> loadAll(List<Client> clients,
                               List<Seller> sellers,
                               List<? extends Product> products,
-                              List<? extends Product> accessories,
-                              List<? extends Promotion> promotions) {
+                              List<? extends Product> accessories) {
 
         List<Sale> sales = new ArrayList<>();
         File file = new File(filePath);
