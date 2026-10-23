@@ -80,6 +80,17 @@ public abstract class Warranty {
                 "Costo Adicional: $" + getAdditionalCost() + "\n" +
                 "===============================";
     }
+        /**
+     * Tells whether the warranty ends within the given period, both dates
+     * included.
+     *
+     * @param from the first day of the period
+     * @param to   the last day of the period
+     * @return true if the end date is on or between {@code from} and {@code to}
+     */
+    public boolean expiresBetween(LocalDate from, LocalDate to) {
+        return endDate != null && !endDate.isBefore(from) && !endDate.isAfter(to);
+    }
 
     public String getId() {
         return id;
