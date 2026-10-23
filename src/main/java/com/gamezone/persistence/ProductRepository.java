@@ -23,7 +23,7 @@ import java.util.List;
  * {@link PersistenceException}; corrupt file content is reported with the
  * file name and line number.</p>
  */
-public class ProductRepository {
+ public class ProductRepository implements ProductStorage{
 
     private static final String DEFAULT_FILE = "data/products.csv";
     private static final int COLUMNS = 8;
@@ -102,6 +102,7 @@ public class ProductRepository {
      *         unknown type, or has values that cannot be stored
      * @throws PersistenceException if an I/O error occurs while writing
      */
+   @Override
    public void saveAll(List<Product> products){
         if (products == null) {
             throw new IllegalArgumentException("La lista de productos no puede ser nula");
@@ -181,6 +182,7 @@ public class ProductRepository {
      * @throws PersistenceException if an I/O error occurs while reading, or
      *         the file contains a malformed line
      */
+    @Override
     public List<Product> load() {
         List<Product> products = new ArrayList<>();
         File file = new File(filePath);
