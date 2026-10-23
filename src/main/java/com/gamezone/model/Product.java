@@ -59,6 +59,25 @@ public abstract class Product {
     public abstract ProductCategory getCategory();
     
     /**
+     * Tells whether selling this product automatically assigns a basic
+     * warranty. Products have none unless a subclass says otherwise.
+     *
+     * @return true if a basic warranty is assigned on sale
+     */
+    public boolean includesBasicWarranty() {
+        return false;
+    }
+
+    /**
+     * Tells whether an extended warranty can be offered when this product
+     * is sold. Products cannot have one unless a subclass says otherwise.
+     *
+     * @return true if an extended warranty can be offered
+     */
+    public boolean canOfferExtendedWarranty() {
+        return false;
+    }
+    /**
      * Tells whether there is enough stock to serve the given quantity.
      *
      * @param quantity the number of units requested

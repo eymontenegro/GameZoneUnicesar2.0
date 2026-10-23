@@ -60,6 +60,25 @@ public class Console extends Product {
     public ProductCategory getCategory() {
         return ProductCategory.CONSOLE;
     }
+        /**
+     * Consoles always receive a basic warranty when they are sold.
+     *
+     * @return true
+     */
+    @Override
+    public boolean includesBasicWarranty() {
+        return true;
+    }
+
+    /**
+     * An extended warranty can be offered for every console.
+     *
+     * @return true
+     */
+    @Override
+    public boolean canOfferExtendedWarranty() {
+        return true;
+    }
 
     @Override
     public String describe() {
