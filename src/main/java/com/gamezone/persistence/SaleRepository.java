@@ -128,28 +128,6 @@ public class SaleRepository implements SaleStorage {
     }
 
     /**
-     * Loads all sales from the CSV file.
-     *
-     * @param clients     list of system clients
-     * @param sellers     list of system sellers
-     * @param products    list of main products (video games and consoles)
-     * @param accessories list of accessories
-     * @param promotions  ignored; sales do not need promotions to be rebuilt
-     * @return a reconstructed list of {@link Sale} objects
-     * @deprecated the {@code promotions} parameter is never used. Use
-     *             {@link #loadAll(List, List, List, List)}. This overload is kept only so
-     *             existing callers keep compiling and will be removed once they migrate.
-     */
-    @Deprecated
-    public List<Sale> loadAll(List<Client> clients,
-                              List<Seller> sellers,
-                              List<? extends Product> products,
-                              List<? extends Product> accessories,
-                              List<? extends Promotion> promotions) {
-        return loadAll(clients, sellers, products, accessories);
-    }
-
-    /**
      * Loads and reconstructs all sales from the CSV file. If the file does not
      * exist yet (first run), returns an empty list. Blank lines are ignored.
      * <p>

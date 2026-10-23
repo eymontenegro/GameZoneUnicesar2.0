@@ -8,6 +8,7 @@ import com.gamezone.model.Cable;
 import com.gamezone.model.ConsoleCompatible;
 import com.gamezone.model.Controller;
 import com.gamezone.model.Memory;
+import com.gamezone.model.StockUpdater;
 import com.gamezone.persistence.AccessoryStorage;
 import com.gamezone.validation.AccessoryValidator;
 
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
  * compatibility, and updating stock. Uses AccessoryStorage to keep
  * persistence synchronized.
  */
-public class AccessoryService {
+public class AccessoryService implements StockUpdater{
 
     private final List<Accessory> accessories;
     private final AccessoryStorage repository;
@@ -171,6 +172,7 @@ public class AccessoryService {
         return found;
     }
 
+    @Override
     public void restoreStock(String accessoryId, int quantity) {
         if (quantity < 0) {
             throw new InvalidDataException("cantidad", "no puede ser negativa");
@@ -182,6 +184,7 @@ public class AccessoryService {
         }
     }
 
+    @Override
     public void updateStock(String accessoryId, int quantity) {
         if (quantity < 0) {
             throw new InvalidDataException("cantidad", "no puede ser negativa");

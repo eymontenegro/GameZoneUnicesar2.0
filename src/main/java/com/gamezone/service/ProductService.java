@@ -8,6 +8,7 @@ import com.gamezone.validation.ProductValidator;
 import com.gamezone.model.Product;
 import com.gamezone.model.VideoGame;
 import com.gamezone.model.Console;
+import com.gamezone.model.StockUpdater;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,7 +19,7 @@ import java.util.List;
  * video games and consoles, listing the inventory, consulting individual
  * products, and updating stock. Uses a ProductStorage to keep the stored catalog in sync.
  */
-public class ProductService {
+public class ProductService implements StockUpdater {
 
     private List<Product> products;
     private ProductStorage  repository;
@@ -191,6 +192,8 @@ public class ProductService {
      * @throws InvalidDataException      if quantity is negative
      * @throws ResourceNotFoundException if no product with that id exists
      */
+    
+    @Override
     public void updateStock(String productId, int quantity) {
         if (quantity < 0) {
             throw new InvalidDataException("cantidad", "no puede ser negativa");
@@ -210,6 +213,8 @@ public class ProductService {
      * @throws InvalidDataException      if quantity is negative
      * @throws ResourceNotFoundException if no product with that id exists
      */
+    
+    @Override
     public void restoreStock(String productId, int quantity) {
         if (quantity < 0) {
             throw new InvalidDataException("cantidad", "no puede ser negativa");
@@ -218,4 +223,5 @@ public class ProductService {
         product.increaseStock(quantity);
         repository.saveAll(products);
     }
+   
 }

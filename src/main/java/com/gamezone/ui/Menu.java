@@ -5,36 +5,51 @@ import com.gamezone.exceptions.GameZoneException;
 import com.gamezone.exceptions.InvalidDataException;
 import com.gamezone.exceptions.PersistenceException;
 import com.gamezone.exceptions.ResourceNotFoundException;
-import com.gamezone.service.AccessoryService;
-import com.gamezone.service.PersonService;
-import com.gamezone.service.ProductService;
-import com.gamezone.service.PromotionService;
-import com.gamezone.service.ReturnService;
-import com.gamezone.service.SaleService;
-import com.gamezone.service.WarrantyService;
-
-import java.util.Scanner;
 
 /**
- * Main navigation menu for GameZone. Delegates form handling to SubMenu.
- * Owns the single Scanner instance shared with SubMenu, so console input
- * is never read by two different Scanner objects at the same time.
+ * Main navigation menu for GameZone. Delegates each module to its own sub-menu.
+ * The sub-menus and the shared ConsoleInput are created by Main and received
+ * here, so Menu does not depend on any service.
  */
 public class Menu {
 
-    private final SubMenu subMenu;
-    private final Scanner scanner;
+    private final ConsoleInput input;
+    private final ProductSubMenu productSubMenu;
+    private final AccessorySubMenu accessorySubMenu;
+    private final PersonSubMenu personSubMenu;
+    private final PromotionSubMenu promotionSubMenu;
+    private final ReturnSubMenu returnSubMenu;
+    private final WarrantySubMenu warrantySubMenu;
+    private final SaleSubMenu saleSubMenu;
 
-    public Menu(ProductService productService,
-                AccessoryService accessoryService,
-                PersonService personService,
-                PromotionService promotionService,
-                SaleService saleService,
-                ReturnService returnService,
-                WarrantyService warrantyService) {
-        this.scanner = new Scanner(System.in);
-        this.subMenu = new SubMenu(productService, accessoryService, personService,
-                promotionService, saleService, returnService, warrantyService, this.scanner);
+    /**
+     * Creates the main menu with the shared console reader and one sub-menu per module.
+     *
+     * @param input the shared console reader
+     * @param productSubMenu sub-menu of products
+     * @param accessorySubMenu sub-menu of accessories
+     * @param personSubMenu sub-menu of clients and sellers
+     * @param promotionSubMenu sub-menu of promotions
+     * @param returnSubMenu sub-menu of returns
+     * @param warrantySubMenu sub-menu of warranties
+     * @param saleSubMenu sub-menu of sales
+     */
+    public Menu(ConsoleInput input,
+                ProductSubMenu productSubMenu,
+                AccessorySubMenu accessorySubMenu,
+                PersonSubMenu personSubMenu,
+                PromotionSubMenu promotionSubMenu,
+                ReturnSubMenu returnSubMenu,
+                WarrantySubMenu warrantySubMenu,
+                SaleSubMenu saleSubMenu) {
+        this.input = input;
+        this.productSubMenu = productSubMenu;
+        this.accessorySubMenu = accessorySubMenu;
+        this.personSubMenu = personSubMenu;
+        this.promotionSubMenu = promotionSubMenu;
+        this.returnSubMenu = returnSubMenu;
+        this.warrantySubMenu = warrantySubMenu;
+        this.saleSubMenu = saleSubMenu;
     }
 
     public void displayMenu() {
@@ -54,19 +69,19 @@ public class Menu {
             System.out.println("0. Salir");
             System.out.print("Seleccione una opción: ");
 
-            option = readInt();
+            option = input.readInt();
 
             // Bloque try-catch en cascada para el manejo diferenciado de excepciones (Requerimiento 6)
             try {
                 switch (option) {
-                    case 1 -> subMenu.showProductSubMenu();
-                    case 2 -> subMenu.showAccessorySubMenu();
-                    case 3 -> subMenu.showPersonSubMenu();
-                    case 4 -> subMenu.showPromotionSubMenu();
-                    case 5 -> subMenu.showReturnSubMenu();
-                    case 6 -> subMenu.showWarrantySubMenu();
-                    case 7 -> subMenu.processSaleForm();
-                    case 8 -> subMenu.listSalesHistory();
+                    case 1 -> productSubMenu.show();
+                    case 2 -> accessorySubMenu.show();
+                    case 3 -> personSubMenu.show();
+                    case 4 -> promotionSubMenu.show();
+                    case 5 -> returnSubMenu.show();
+                    case 6 -> warrantySubMenu.show();
+                    case 7 -> saleSubMenu.processSaleForm();
+                    case 8 -> saleSubMenu.listSalesHistory();
                     case 0 -> System.out.println("\nSaliendo del sistema...");
                     default -> System.out.println("Opción no válida.");
                 }
@@ -83,13 +98,5 @@ public class Menu {
             }
 
         } while (option != 0);
-    }
-
-    private int readInt() {
-        try {
-            return Integer.parseInt(scanner.nextLine().trim());
-        } catch (Exception e) {
-            return -1;
-        }
     }
 }
