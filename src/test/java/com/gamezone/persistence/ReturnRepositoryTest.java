@@ -21,6 +21,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.gamezone.persistence.CsvTestSupport.assertCorrupt;
+import static com.gamezone.persistence.CsvTestSupport.loadFails;
+import static com.gamezone.persistence.CsvTestSupport.writeFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -51,14 +54,6 @@ class ReturnRepositoryTest {
         sale.addDetail(new SaleDetail(console, 1, 500.0));
         sale.setDiscountAmount(60.0);
         sale.calculateFinalTotal();
-    }
-
-    private PersistenceException loadFails() {
-        return assertThrows(PersistenceException.class, () -> repository.loadAll(List.of(sale)));
-    }
-
-    private void writeFile(String... lines) throws IOException {
-        Files.writeString(file, String.join("\n", lines) + "\n");
     }
 
     private Return sampleReturn(String id, double warrantyRefund) {
@@ -107,7 +102,7 @@ class ReturnRepositoryTest {
     @DisplayName("Archivo inexistente: lista vacia; lineas en blanco ignoradas")
     void missingFileAndBlankLines() throws IOException {
         assertTrue(repository.loadAll(List.of(sale)).isEmpty());
-        writeFile("", "R1,V1,2026-04-01,Defecto,100.0,P1", "  ");
+        writeFile(file, "", "R1,V1,2026-04-01,Defecto,100.0,P1", "  ");
         assertEquals(1, repository.loadAll(List.of(sale)).size());
     }
 
@@ -138,22 +133,22 @@ class ReturnRepositoryTest {
     @Test
     @DisplayName("load falla con columnas, fecha, monto y referencias invalidas")
     void loadFailsOnCorruptLines() throws IOException {
-        writeFile("R1,V1,2026-04-01");
-        assertTrue(loadFails().getMessage().contains("linea 1"));
-        writeFile("R1,V1,01-04-2026,Defecto,100.0,P1");
-        loadFails();
-        writeFile("R1,V1,2026-04-01,Defecto,mucho,P1");
-        loadFails();
-        writeFile("R1,V1,2026-04-01,Defecto,-5.0,P1");
-        loadFails();
-        writeFile(",V1,2026-04-01,Defecto,100.0,P1");
-        loadFails();
-        writeFile("R1,V99,2026-04-01,Defecto,100.0,P1");
-        assertTrue(loadFails().getMessage().contains("V99"));
-        writeFile("R1,V1,2026-04-01,Defecto,100.0,P99");
-        assertTrue(loadFails().getMessage().contains("P99"));
-        writeFile("R1,V1,2026-04-01,Defecto,100.0,P1;");
-        loadFails();
+        writeFile(file, "R1,V1,2026-04-01");
+        assertCorrupt(() -> repository.loadAll(List.of(sale)), file, 1, "se esperaban 6 columnas pero hay 3");
+        writeFile(file, "R1,V1,01-04-2026,Defecto,100.0,P1");
+        assertCorrupt(() -> repository.loadAll(List.of(sale)), file, 1, "el campo 'date' no es una fecha valida (yyyy-MM-dd): '01-04-2026'");
+        writeFile(file, "R1,V1,2026-04-01,Defecto,mucho,P1");
+        assertCorrupt(() -> repository.loadAll(List.of(sale)), file, 1, "el campo 'refundAmount' no es un numero valido: 'mucho'");
+        writeFile(file, "R1,V1,2026-04-01,Defecto,-5.0,P1");
+        assertCorrupt(() -> repository.loadAll(List.of(sale)), file, 1, "el reembolso no puede ser negativo: -5.0");
+        writeFile(file, ",V1,2026-04-01,Defecto,100.0,P1");
+        assertCorrupt(() -> repository.loadAll(List.of(sale)), file, 1, "el campo 'id' esta vacio");
+        writeFile(file, "R1,V99,2026-04-01,Defecto,100.0,P1");
+        assertTrue(loadFails(() -> repository.loadAll(List.of(sale))).getMessage().contains("V99"));
+        writeFile(file, "R1,V1,2026-04-01,Defecto,100.0,P99");
+        assertTrue(loadFails(() -> repository.loadAll(List.of(sale))).getMessage().contains("P99"));
+        writeFile(file, "R1,V1,2026-04-01,Defecto,100.0,P1;");
+        assertCorrupt(() -> repository.loadAll(List.of(sale)), file, 1, "el campo 'productId' esta vacio");
     }
 
     @Test
