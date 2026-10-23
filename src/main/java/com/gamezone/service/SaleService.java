@@ -3,9 +3,7 @@ package com.gamezone.service;
 import com.gamezone.exceptions.GameZoneException;
 import com.gamezone.exceptions.InvalidDataException;
 import com.gamezone.exceptions.ResourceNotFoundException;
-import com.gamezone.model.Accessory;
 import com.gamezone.model.Client;
-import com.gamezone.model.Console;
 import com.gamezone.model.Product;
 import com.gamezone.model.Promotion;
 import com.gamezone.model.Sale;
@@ -108,22 +106,18 @@ public class SaleService {
 
         List<SaleDetail> processedDetails = new ArrayList<>();
         try {
-            // 4. Deduct Stock
+            // 4. Deduct Stock (Polymorphic call)
             for (SaleDetail detail : items) {
                 Product product = detail.getProduct();
-                if (product instanceof Accessory) {
-                    accessoryService.updateStock(product.getId(), detail.getQuantity());
-                } else {
-                    productService.updateStock(product.getId(), detail.getQuantity());
-                }
+                product.updateStock(productService, accessoryService, detail.getQuantity());
                 processedDetails.add(detail);
             }
 
-            // 5. Assign Warranties
+            // 5. Assign Warranties (Polymorphic check)
             for (SaleDetail detail : items) {
                 Product product = detail.getProduct();
 
-                if (product instanceof Console) {
+                if (product.includesBasicWarranty()) {
                     warrantyService.assignBasicWarranty(product, sale, sale.getDate());
                 }
 
@@ -136,9 +130,13 @@ public class SaleService {
             // 6. Register Client Purchase
             personService.registerPurchase(clientId, saleId);
 
-            // 7. Persist
-            sales.add(sale);
-            saleStorage.saveAll(new ArrayList<>(sales));
+            // 7. Persist: save first, add to memory only if the save succeeded
+            synchronized (sales) {
+                List<Sale> updatedSales = new ArrayList<>(sales);
+                updatedSales.add(sale);
+                saleStorage.saveAll(updatedSales);
+                sales.add(sale);
+            }
 
             return sale;
         } catch (Exception ex) {
@@ -157,11 +155,7 @@ public class SaleService {
         if (product == null) {
             return;
         }
-        if (product instanceof Accessory) {
-            accessoryService.restoreStock(product.getId(), quantity);
-        } else {
-            productService.restoreStock(product.getId(), quantity);
-        }
+        product.restoreStock(productService, accessoryService, quantity);
     }
 
     public List<Sale> listAllSales() {
