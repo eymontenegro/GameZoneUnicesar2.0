@@ -8,7 +8,7 @@ import com.gamezone.model.Cable;
 import com.gamezone.model.ConsoleCompatible;
 import com.gamezone.model.Controller;
 import com.gamezone.model.Memory;
-import com.gamezone.persistence.AccessoryRepository;
+import com.gamezone.persistence.AccessoryStorage;
 import com.gamezone.validation.AccessoryValidator;
 
 import java.util.ArrayList;
@@ -20,21 +20,21 @@ import java.util.stream.Collectors;
 /**
  * Applies the business rules for managing accessories: registering new
  * controllers, cables, and memories, listing them, checking console
- * compatibility, and updating stock. Uses AccessoryRepository to keep
+ * compatibility, and updating stock. Uses AccessoryStorage to keep
  * persistence synchronized.
  */
 public class AccessoryService {
 
     private final List<Accessory> accessories;
-    private final AccessoryRepository repository;
+    private final AccessoryStorage repository;
 
     /**
-     * Creates the service using the given repository and loads any
-     * previously saved accessories from storage.
+     * Creates the service using the given storage and loads any
+     * previously saved accessories from it.
      *
-     * @param repository the repository used to persist accessories
+     * @param repository the storage used to persist accessories
      */
-    public AccessoryService(AccessoryRepository repository) {
+    public AccessoryService(AccessoryStorage repository) {
         this.repository = Objects.requireNonNull(repository, "AccessoryRepository cannot be null.");
         List<Accessory> loaded = repository.loadAll();
         this.accessories = Collections.synchronizedList(loaded != null ? new ArrayList<>(loaded) : new ArrayList<>());
