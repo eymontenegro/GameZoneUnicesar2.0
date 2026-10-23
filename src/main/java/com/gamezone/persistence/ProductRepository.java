@@ -5,11 +5,6 @@ import com.gamezone.model.Console;
 import com.gamezone.model.Product;
 import com.gamezone.model.VideoGame;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -114,15 +109,7 @@ public class ProductRepository {
             lines.add(productToCsvLine(product));
         }
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-            for (String line : lines) {
-                writer.write(line);
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron guardar " + lines.size()
-                    + " producto(s) en '" + filePath + "'", e);
-        }
+        CsvSupport.writeLines(filePath, lines, "producto(s)");
     }
 
     /**
@@ -144,20 +131,10 @@ public class ProductRepository {
         CsvSupport.requireNotBlank(id, "id", filePath, lineNumber);
         CsvSupport.requireNotBlank(title, "title", filePath, lineNumber);
 
-        double price;
-        int stock;
-        try {
-            price = Double.parseDouble(parts[3]);
-        } catch (NumberFormatException e) {
-            throw CsvSupport.corruptLine(filePath, lineNumber, "el precio no es un numero valido: '" + parts[3] + "'", e);
-        }
-        try {
-            stock = Integer.parseInt(parts[4]);
-        } catch (NumberFormatException e) {
-            throw CsvSupport.corruptLine(filePath, lineNumber, "el stock no es un entero valido: '" + parts[4] + "'", e);
-        }
-        if (Double.isNaN(price) || Double.isInfinite(price) || price < 0) {
-            throw CsvSupport.corruptLine(filePath, lineNumber, "el precio no puede ser negativo ni infinito: " + price, null);
+        double price = CsvSupport.parseDouble(parts[3], "price", filePath, lineNumber);
+        int stock = CsvSupport.parseInt(parts[4], "stock", filePath, lineNumber);
+        if (price < 0) {
+            throw CsvSupport.corruptLine(filePath, lineNumber, "el precio no puede ser negativo: " + price, null);
         }
         if (stock < 0) {
             throw CsvSupport.corruptLine(filePath, lineNumber, "el stock no puede ser negativo: " + stock, null);
@@ -182,27 +159,6 @@ public class ProductRepository {
      *         the file contains a malformed line
      */
     public List<Product> load() {
-        List<Product> products = new ArrayList<>();
-        File file = new File(filePath);
-
-        if (!file.exists()) {
-            return products;
-        }
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            int lineNumber = 0;
-            while ((line = reader.readLine()) != null) {
-                lineNumber++;
-                if (line.isBlank()) {
-                    continue;
-                }
-                products.add(csvLineToProduct(line, lineNumber));
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron leer los productos desde '" + filePath + "'", e);
-        }
-
-        return products;
+        return CsvSupport.readLines(filePath, "los productos", this::csvLineToProduct);
     }
 }

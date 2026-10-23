@@ -8,14 +8,9 @@ import com.gamezone.model.Sale;
 import com.gamezone.model.SaleDetail;
 import com.gamezone.model.Seller;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -127,22 +122,8 @@ public class SaleRepository {
             lines.add(saleToCsvLine(sale));
         }
 
-        File file = new File(filePath);
-        File parent = file.getParentFile();
-        if (parent != null && !parent.exists() && !parent.mkdirs() && !parent.exists()) {
-            throw new PersistenceException("No se pudo crear el directorio '" + parent.getPath()
-                    + "' para guardar las ventas");
-        }
-
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-            for (String line : lines) {
-                writer.write(line);
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron guardar " + lines.size()
-                    + " venta(s) en '" + filePath + "'", e);
-        }
+        CsvSupport.ensureParentDirectory(new File(filePath), "las ventas");
+        CsvSupport.writeLines(filePath, lines, "venta(s)");
     }
 
     /**
@@ -157,7 +138,6 @@ public class SaleRepository {
      * @param sellers     list of system sellers
      * @param products    list of main products (video games and consoles)
      * @param accessories list of accessories
-     * @param promotions  list of active/registered promotions
      * @return a reconstructed list of {@link Sale} objects
      * @throws PersistenceException if an I/O error occurs while reading, or the
      *         file contains a malformed line or a reference that cannot be resolved
@@ -165,15 +145,7 @@ public class SaleRepository {
     public List<Sale> loadAll(List<Client> clients,
                               List<Seller> sellers,
                               List<? extends Product> products,
-                              List<? extends Product> accessories,
-                              List<? extends Promotion> promotions) {
-
-        List<Sale> sales = new ArrayList<>();
-        File file = new File(filePath);
-
-        if (!file.exists()) {
-            return sales;
-        }
+                              List<? extends Product> accessories) {
 
         Map<String, Client> clientMap = new HashMap<>();
         if (clients != null) {
@@ -209,21 +181,32 @@ public class SaleRepository {
             }
         }
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            int lineNumber = 0;
-            while ((line = reader.readLine()) != null) {
-                lineNumber++;
-                if (line.isBlank()) {
-                    continue;
-                }
-                sales.add(csvLineToSale(line, lineNumber, clientMap, sellerMap, productMap));
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron leer las ventas desde '" + filePath + "'", e);
-        }
+        return CsvSupport.readLines(filePath, "las ventas",
+                (line, lineNumber) -> csvLineToSale(line, lineNumber, clientMap, sellerMap, productMap));
+    }
 
-        return sales;
+    /**
+     * Same as {@link #loadAll(List, List, List, List)}; the {@code promotions}
+     * list was never used to rebuild a sale and is ignored.
+     *
+     * @param clients     list of system clients
+     * @param sellers     list of system sellers
+     * @param products    list of main products (video games and consoles)
+     * @param accessories list of accessories
+     * @param promotions  ignored
+     * @return a reconstructed list of {@link Sale} objects
+     * @throws PersistenceException if an I/O error occurs while reading, or the
+     *         file contains a malformed line or a reference that cannot be resolved
+     * @deprecated use {@link #loadAll(List, List, List, List)}; this overload only
+     *             exists so callers outside the persistence layer can migrate first
+     */
+    @Deprecated
+    public List<Sale> loadAll(List<Client> clients,
+                              List<Seller> sellers,
+                              List<? extends Product> products,
+                              List<? extends Product> accessories,
+                              List<? extends Promotion> promotions) {
+        return loadAll(clients, sellers, products, accessories);
     }
 
     /**
@@ -247,12 +230,7 @@ public class SaleRepository {
         String id = parts[0].trim();
         CsvSupport.requireNotBlank(id, "id", filePath, lineNumber);
 
-        LocalDate date;
-        try {
-            date = LocalDate.parse(parts[1].trim());
-        } catch (DateTimeParseException e) {
-            throw CsvSupport.corruptLine(filePath, lineNumber, "la fecha no es valida: '" + parts[1] + "'", e);
-        }
+        LocalDate date = CsvSupport.parseDate(parts[1], "date", filePath, lineNumber);
 
         String sellerId = parts[2].trim();
         String clientId = parts[3].trim();
@@ -296,16 +274,10 @@ public class SaleRepository {
      * @throws PersistenceException if the value is not a valid non-negative number
      */
     private double parseAmount(String text, String fieldName, int lineNumber) {
-        double value;
-        try {
-            value = Double.parseDouble(text.trim());
-        } catch (NumberFormatException e) {
+        double value = CsvSupport.parseDouble(text, fieldName, filePath, lineNumber);
+        if (value < 0) {
             throw CsvSupport.corruptLine(filePath, lineNumber,
-                    "el campo '" + fieldName + "' no es un numero valido: '" + text + "'", e);
-        }
-        if (Double.isNaN(value) || Double.isInfinite(value) || value < 0) {
-            throw CsvSupport.corruptLine(filePath, lineNumber,
-                    "el campo '" + fieldName + "' no puede ser negativo ni infinito: " + value, null);
+                    "el campo '" + fieldName + "' no puede ser negativo: " + value, null);
         }
         return value;
     }
@@ -331,19 +303,8 @@ public class SaleRepository {
             throw CsvSupport.corruptLine(filePath, lineNumber,
                     "el producto '" + productId + "' del detalle no existe", null);
         }
-        int quantity;
-        double unitPrice;
-        try {
-            quantity = Integer.parseInt(itemParts[1].trim());
-            unitPrice = Double.parseDouble(itemParts[2].trim());
-        } catch (NumberFormatException e) {
-            throw CsvSupport.corruptLine(filePath, lineNumber,
-                    "cantidad o precio invalidos en el detalle '" + detailStr + "'", e);
-        }
-        if (Double.isNaN(unitPrice) || Double.isInfinite(unitPrice)) {
-            throw CsvSupport.corruptLine(filePath, lineNumber,
-                    "el precio del detalle '" + detailStr + "' no es finito", null);
-        }
+        int quantity = CsvSupport.parseInt(itemParts[1], "cantidad", filePath, lineNumber);
+        double unitPrice = CsvSupport.parseDouble(itemParts[2], "precio", filePath, lineNumber);
         try {
             return new SaleDetail(product, quantity, unitPrice);
         } catch (IllegalArgumentException e) {

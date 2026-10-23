@@ -6,11 +6,7 @@ import com.gamezone.model.Return;
 import com.gamezone.model.Sale;
 import com.gamezone.model.SaleDetail;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -117,15 +113,7 @@ public class ReturnRepository {
         File file = new File(filePath);
         CsvSupport.ensureParentDirectory(file, "las devoluciones");
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-            for (String line : lines) {
-                writer.write(line);
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron guardar " + lines.size()
-                    + " devolucion(es) en '" + filePath + "'", e);
-        }
+        CsvSupport.writeLines(filePath, lines, "devolucion(es)");
     }
 
     /**
@@ -217,13 +205,6 @@ public class ReturnRepository {
      *         file contains a malformed line or a reference that cannot be resolved
      */
     public List<Return> loadAll(List<Sale> sales) {
-        List<Return> returns = new ArrayList<>();
-        File file = new File(filePath);
-
-        if (!file.exists()) {
-            return returns;
-        }
-
         Map<String, Sale> saleMap = new HashMap<>();
         if (sales != null) {
             for (Sale sale : sales) {
@@ -233,20 +214,7 @@ public class ReturnRepository {
             }
         }
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            int lineNumber = 0;
-            while ((line = reader.readLine()) != null) {
-                lineNumber++;
-                if (line.isBlank()) {
-                    continue;
-                }
-                returns.add(csvLineToReturn(line, lineNumber, saleMap));
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron leer las devoluciones desde '" + filePath + "'", e);
-        }
-
-        return returns;
+        return CsvSupport.readLines(filePath, "las devoluciones",
+                (line, lineNumber) -> csvLineToReturn(line, lineNumber, saleMap));
     }
 }

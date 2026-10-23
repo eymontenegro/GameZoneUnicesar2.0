@@ -17,6 +17,8 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.gamezone.persistence.CsvTestSupport.assertCorrupt;
+import static com.gamezone.persistence.CsvTestSupport.writeFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -38,14 +40,6 @@ class PromotionRepositoryTest {
     void setUp() {
         file = tempDir.resolve("promotions.csv");
         repository = new PromotionRepository(file.toString());
-    }
-
-    private PersistenceException loadFails() {
-        return assertThrows(PersistenceException.class, repository::loadAll);
-    }
-
-    private void writeFile(String... lines) throws IOException {
-        Files.writeString(file, String.join("\n", lines) + "\n");
     }
 
     @Test
@@ -87,30 +81,30 @@ class PromotionRepositoryTest {
     @Test
     @DisplayName("load falla con columnas, fechas, numeros, rangos y tipo invalidos")
     void loadFailsOnCorruptLines() throws IOException {
-        writeFile("PERCENTAGE,P1,General");
-        assertTrue(loadFails().getMessage().contains("linea 1"));
-        writeFile("DOBLE,P1,General,2026-01-01,2026-12-31,15.0");
-        loadFails();
-        writeFile("PERCENTAGE,P1,General,01/01/2026,2026-12-31,15.0");
-        loadFails();
-        writeFile("PERCENTAGE,P1,General,2026-12-31,2026-01-01,15.0");
-        loadFails();
-        writeFile("PERCENTAGE,P1,General,2026-01-01,2026-12-31,mucho");
-        loadFails();
-        writeFile("PERCENTAGE,P1,General,2026-01-01,2026-12-31,150.0");
-        loadFails();
-        writeFile("PERCENTAGE,P1,General,2026-01-01,2026-12-31,-5.0");
-        loadFails();
-        writeFile("CATEGORY,P2,Juegos,2026-01-01,2026-12-31,20.0");
-        loadFails();
-        writeFile("CATEGORY,P2,Juegos,2026-01-01,2026-12-31,20.0,");
-        loadFails();
-        writeFile("BULK,P3,Volumen,2026-01-01,2026-12-31,0,10.0");
-        loadFails();
-        writeFile("BULK,P3,Volumen,2026-01-01,2026-12-31,tres,10.0");
-        loadFails();
-        writeFile("PERCENTAGE,,General,2026-01-01,2026-12-31,15.0");
-        loadFails();
+        writeFile(file, "PERCENTAGE,P1,General");
+        assertCorrupt(repository::loadAll, file, 1, "se esperaban al menos 6 columnas pero hay 3");
+        writeFile(file, "DOBLE,P1,General,2026-01-01,2026-12-31,15.0");
+        assertCorrupt(repository::loadAll, file, 1, "tipo de promocion desconocido: 'DOBLE'");
+        writeFile(file, "PERCENTAGE,P1,General,01/01/2026,2026-12-31,15.0");
+        assertCorrupt(repository::loadAll, file, 1, "el campo 'startDate' no es una fecha valida (yyyy-MM-dd): '01/01/2026'");
+        writeFile(file, "PERCENTAGE,P1,General,2026-12-31,2026-01-01,15.0");
+        assertCorrupt(repository::loadAll, file, 1, "la fecha de fin (2026-01-01) es anterior a la de inicio (2026-12-31)");
+        writeFile(file, "PERCENTAGE,P1,General,2026-01-01,2026-12-31,mucho");
+        assertCorrupt(repository::loadAll, file, 1, "el campo 'percentage' no es un numero valido: 'mucho'");
+        writeFile(file, "PERCENTAGE,P1,General,2026-01-01,2026-12-31,150.0");
+        assertCorrupt(repository::loadAll, file, 1, "valores invalidos");
+        writeFile(file, "PERCENTAGE,P1,General,2026-01-01,2026-12-31,-5.0");
+        assertCorrupt(repository::loadAll, file, 1, "valores invalidos");
+        writeFile(file, "CATEGORY,P2,Juegos,2026-01-01,2026-12-31,20.0");
+        assertCorrupt(repository::loadAll, file, 1, "se esperaban 7 columnas pero hay 6");
+        writeFile(file, "CATEGORY,P2,Juegos,2026-01-01,2026-12-31,20.0,");
+        assertCorrupt(repository::loadAll, file, 1, "el campo 'targetCategory' esta vacio");
+        writeFile(file, "BULK,P3,Volumen,2026-01-01,2026-12-31,0,10.0");
+        assertCorrupt(repository::loadAll, file, 1, "valores invalidos");
+        writeFile(file, "BULK,P3,Volumen,2026-01-01,2026-12-31,tres,10.0");
+        assertCorrupt(repository::loadAll, file, 1, "el campo 'minimumQuantity' no es un entero valido: 'tres'");
+        writeFile(file, "PERCENTAGE,,General,2026-01-01,2026-12-31,15.0");
+        assertCorrupt(repository::loadAll, file, 1, "el campo 'id' esta vacio");
     }
 
     @Test

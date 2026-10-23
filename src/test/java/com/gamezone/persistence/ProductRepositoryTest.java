@@ -15,6 +15,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.gamezone.persistence.CsvTestSupport.assertCorrupt;
+import static com.gamezone.persistence.CsvTestSupport.writeFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -33,14 +35,6 @@ class ProductRepositoryTest {
     void setUp() {
         file = tempDir.resolve("products.csv");
         repository = new ProductRepository(file.toString());
-    }
-
-    private PersistenceException loadFails() {
-        return assertThrows(PersistenceException.class, repository::load);
-    }
-
-    private void writeFile(String... lines) throws IOException {
-        Files.writeString(file, String.join("\n", lines) + "\n");
     }
 
     @Test
@@ -80,20 +74,20 @@ class ProductRepositoryTest {
     @Test
     @DisplayName("load falla con columnas, tipo, precio y stock invalidos")
     void loadFailsOnCorruptLines() throws IOException {
-        writeFile("VIDEOGAME,P1,Juego");
-        assertTrue(loadFails().getMessage().contains("linea 1"));
-        writeFile("DRON,P1,Juego,10.0,1,a,b,c");
-        loadFails();
-        writeFile("VIDEOGAME,P1,Juego,barato,1,a,b,c");
-        loadFails();
-        writeFile("VIDEOGAME,P1,Juego,-10.0,1,a,b,c");
-        loadFails();
-        writeFile("VIDEOGAME,P1,Juego,10.0,uno,a,b,c");
-        loadFails();
-        writeFile("VIDEOGAME,P1,Juego,10.0,-1,a,b,c");
-        loadFails();
-        writeFile("VIDEOGAME,,Juego,10.0,1,a,b,c");
-        loadFails();
+        writeFile(file, "VIDEOGAME,P1,Juego");
+        assertCorrupt(repository::load, file, 1, "se esperaban 8 columnas pero hay 3");
+        writeFile(file, "DRON,P1,Juego,10.0,1,a,b,c");
+        assertCorrupt(repository::load, file, 1, "tipo de producto desconocido: 'DRON'");
+        writeFile(file, "VIDEOGAME,P1,Juego,barato,1,a,b,c");
+        assertCorrupt(repository::load, file, 1, "el campo 'price' no es un numero valido: 'barato'");
+        writeFile(file, "VIDEOGAME,P1,Juego,-10.0,1,a,b,c");
+        assertCorrupt(repository::load, file, 1, "el precio no puede ser negativo: -10.0");
+        writeFile(file, "VIDEOGAME,P1,Juego,10.0,uno,a,b,c");
+        assertCorrupt(repository::load, file, 1, "el campo 'stock' no es un entero valido: 'uno'");
+        writeFile(file, "VIDEOGAME,P1,Juego,10.0,-1,a,b,c");
+        assertCorrupt(repository::load, file, 1, "el stock no puede ser negativo: -1");
+        writeFile(file, "VIDEOGAME,,Juego,10.0,1,a,b,c");
+        assertCorrupt(repository::load, file, 1, "el campo 'id' esta vacio");
     }
 
     @Test

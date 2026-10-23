@@ -11,11 +11,7 @@ import com.gamezone.model.Sale;
 import com.gamezone.model.Seller;
 import com.gamezone.model.Warranty;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -151,15 +147,7 @@ public class WarrantyRepository {
         File file = new File(filePath);
         CsvSupport.ensureParentDirectory(file, "las garantias");
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-            for (String line : lines) {
-                writer.write(line);
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron guardar " + lines.size()
-                    + " garantia(s) en '" + filePath + "'", e);
-        }
+        CsvSupport.writeLines(filePath, lines, "garantia(s)");
     }
 
     /**
@@ -219,11 +207,9 @@ public class WarrantyRepository {
      *         unresolvable reference
      */
     public List<Warranty> loadAll() {
-        List<Warranty> warranties = new ArrayList<>();
-        File file = new File(filePath);
-
-        if (!file.exists()) {
-            return warranties;
+        // Checked before loading the five dependencies, so a first run does not read their files.
+        if (!new File(filePath).exists()) {
+            return new ArrayList<>();
         }
 
         List<Client> clients = personRepository.loadClients();
@@ -247,20 +233,7 @@ public class WarrantyRepository {
             productMap.put(accessory.getId(), accessory);
         }
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            int lineNumber = 0;
-            while ((line = reader.readLine()) != null) {
-                lineNumber++;
-                if (line.isBlank()) {
-                    continue;
-                }
-                warranties.add(csvLineToWarranty(line, lineNumber, saleMap, productMap));
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron leer las garantias desde '" + filePath + "'", e);
-        }
-
-        return warranties;
+        return CsvSupport.readLines(filePath, "las garantias",
+                (line, lineNumber) -> csvLineToWarranty(line, lineNumber, saleMap, productMap));
     }
 }
