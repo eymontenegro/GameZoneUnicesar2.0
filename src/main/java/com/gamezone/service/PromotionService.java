@@ -1,147 +1,155 @@
 package com.gamezone.service;
 
+import com.gamezone.exceptions.BusinessRuleException;
+import com.gamezone.exceptions.InvalidDataException;
+import com.gamezone.exceptions.ResourceNotFoundException;
 import com.gamezone.model.BulkPurchaseDiscount;
 import com.gamezone.model.CategoryDiscount;
 import com.gamezone.model.PercentageDiscount;
 import com.gamezone.model.Promotion;
 import com.gamezone.model.Sale;
-import com.gamezone.persistence.PromotionRepository;
+import com.gamezone.persistence.PromotionStorage;
+import com.gamezone.validation.PromotionValidator;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Applies the business rules for managing promotions: registering new
- * percentage, category and bulk-purchase promotions, listing them,
+ * percentage, category, and bulk-purchase promotions, listing them,
  * and selecting the best applicable promotion for a given sale.
- * Uses PromotionRepository to keep the file in sync with every change.
+ * Uses PromotionStorage to keep persistence synchronized.
  */
 public class PromotionService {
 
-    private List<Promotion> promotions;
-    private PromotionRepository repository;
+    private final List<Promotion> promotions;
+    private final PromotionStorage repository;
 
     /**
-     * Creates the service using the given repository and loads any
-     * previously saved promotions from the file, so the catalog is
-     * available as soon as the application starts.
+     * Constructs the service using the given repository and loads any
+     * previously saved promotions from persistence.
      *
      * @param repository the repository used to persist promotions
      */
-    public PromotionService(PromotionRepository repository) {
-        this.repository = repository;
-        this.promotions = repository.loadAll();
+    public PromotionService(PromotionStorage repository) {
+        this.repository = Objects.requireNonNull(repository, "PromotionRepository cannot be null");
+        List<Promotion> loadedPromotions = repository.loadAll();
+        this.promotions = Collections.synchronizedList(loadedPromotions != null ? new ArrayList<>(loadedPromotions) : new ArrayList<>());
     }
 
     /**
-     * Registers a new percentage promotion and immediately saves the
-     * updated catalog to the file.
+     * Validates the data shared by every promotion and checks for duplicates.
      *
-     * @param id the promotion identifier
-     * @param name the promotion name
-     * @param startDate the date the promotion becomes active
-     * @param endDate the date the promotion stops being active
-     * @param percentage the discount percentage applied to the sale total
+     * @throws InvalidDataException  if any field is invalid
+     * @throws BusinessRuleException if a promotion with the same ID already exists
      */
-    public void registerPercentageDiscount(String id, String name, LocalDate startDate, LocalDate endDate,
-                                            double percentage) {
-        PercentageDiscount newPromotion = new PercentageDiscount(id, name, startDate, endDate, percentage);
-        promotions.add(newPromotion);
-        repository.saveAll(promotions);
-    }
-
-    /**
-     * Registers a new category promotion and immediately saves the
-     * updated catalog to the file.
-     *
-     * @param id the promotion identifier
-     * @param name the promotion name
-     * @param startDate the date the promotion becomes active
-     * @param endDate the date the promotion stops being active
-     * @param percentage the discount percentage applied to the target category
-     * @param targetCategory the category this promotion applies to ("VIDEOGAME" or "CONSOLE")
-     */
-    public void registerCategoryDiscount(String id, String name, LocalDate startDate, LocalDate endDate,
-                                          double percentage, String targetCategory) {
-        CategoryDiscount newPromotion = new CategoryDiscount(id, name, startDate, endDate, percentage, targetCategory);
-        promotions.add(newPromotion);
-        repository.saveAll(promotions);
-    }
-
-    /**
-     * Registers a new bulk-purchase promotion and immediately saves the
-     * updated catalog to the file.
-     *
-     * @param id the promotion identifier
-     * @param name the promotion name
-     * @param startDate the date the promotion becomes active
-     * @param endDate the date the promotion stops being active
-     * @param minimumQuantity the minimum number of products required in the sale
-     * @param percentage the discount percentage applied to the sale total
-     */
-    public void registerBulkPurchaseDiscount(String id, String name, LocalDate startDate, LocalDate endDate,
-                                              int minimumQuantity, double percentage) {
-        BulkPurchaseDiscount newPromotion = new BulkPurchaseDiscount(id, name, startDate, endDate, minimumQuantity, percentage);
-        promotions.add(newPromotion);
-        repository.saveAll(promotions);
-    }
-
-    /**
-     * Returns the full list of currently registered promotions.
-     *
-     * @return the list of all promotions
-     */
-    public List<Promotion> listAllPromotions() {
-        return promotions;
-    }
-
-    /**
-     * Returns the promotions that are active on the current date.
-     *
-     * @return the list of currently active promotions
-     */
-    public List<Promotion> listActivePromotions() {
-        List<Promotion> activePromotions = new ArrayList<>();
-        LocalDate today = LocalDate.now();
-        for (Promotion promotion : promotions) {
-            if (promotion.isActive(today)) {
-                activePromotions.add(promotion);
-            }
+    private void validateCommonPromotionData(String id, String name, LocalDate startDate, LocalDate endDate, double percentage) {
+        PromotionValidator.validatePromotionData(id, name, startDate, endDate, percentage);
+        if (existsId(id)) {
+            throw new BusinessRuleException("Ya existe una promoción con el ID: " + id);
         }
-        return activePromotions;
+    }
+
+    private boolean existsId(String id) {
+        synchronized (promotions) {
+            return promotions.stream()
+                    .filter(Objects::nonNull)
+                    .anyMatch(p -> p.getId() != null && p.getId().equalsIgnoreCase(id.trim()));
+        }
+    }
+
+    public void registerPercentageDiscount(String id, String name, LocalDate startDate, LocalDate endDate, double percentage) {
+        validateCommonPromotionData(id, name, startDate, endDate, percentage);
+        PercentageDiscount newPromotion = new PercentageDiscount(id, name, startDate, endDate, percentage);
+        savePromotion(newPromotion);
+    }
+
+    public void registerCategoryDiscount(String id, String name, LocalDate startDate, LocalDate endDate,
+                                         double percentage, String targetCategory) {
+        validateCommonPromotionData(id, name, startDate, endDate, percentage);
+        PromotionValidator.validateCategoryData(targetCategory);
+        CategoryDiscount newPromotion = new CategoryDiscount(id, name, startDate, endDate, percentage, targetCategory);
+        savePromotion(newPromotion);
+    }
+
+    public void registerBulkPurchaseDiscount(String id, String name, LocalDate startDate, LocalDate endDate,
+                                             int minimumQuantity, double percentage) {
+        validateCommonPromotionData(id, name, startDate, endDate, percentage);
+        PromotionValidator.validateBulkPurchaseData(minimumQuantity);
+        BulkPurchaseDiscount newPromotion = new BulkPurchaseDiscount(id, name, startDate, endDate, minimumQuantity, percentage);
+        savePromotion(newPromotion);
+    }
+
+    private void savePromotion(Promotion promotion) {
+        synchronized (promotions) {
+            promotions.add(promotion);
+            repository.saveAll(new ArrayList<>(promotions));
+        }
+    }
+
+    public List<Promotion> listAllPromotions() {
+        synchronized (promotions) {
+            return new ArrayList<>(promotions);
+        }
+    }
+
+    public List<Promotion> listActivePromotions() {
+        return listActivePromotionsOnDate(LocalDate.now());
+    }
+
+    public List<Promotion> listActivePromotionsOnDate(LocalDate date) {
+        if (date == null) {
+            return Collections.emptyList();
+        }
+        synchronized (promotions) {
+            return promotions.stream()
+                    .filter(Objects::nonNull)
+                    .filter(promotion -> promotion.isActive(date))
+                    .collect(Collectors.toList());
+        }
     }
 
     /**
-     * Finds a single promotion by its id.
+     * Finds a single promotion by its ID.
      *
      * @param id the id of the promotion to find
      * @return the matching promotion
-     * @throws IllegalArgumentException if no promotion with that id exists
+     * @throws InvalidDataException      if id is null or empty
+     * @throws ResourceNotFoundException if no promotion with that id exists
      */
     public Promotion findById(String id) {
-        for (Promotion promotion : promotions) {
-            if (promotion.getId().equals(id)) {
-                return promotion;
-            }
+        if (id == null || id.trim().isEmpty()) {
+            throw new InvalidDataException("identificador de la promoción", "no puede ser nulo ni vacío");
         }
-        throw new IllegalArgumentException("Unknown promotion id: " + id);
+        Promotion found;
+        synchronized (promotions) {
+            found = promotions.stream()
+                    .filter(Objects::nonNull)
+                    .filter(p -> p.getId() != null && p.getId().equalsIgnoreCase(id.trim()))
+                    .findFirst()
+                    .orElse(null);
+        }
+        PromotionValidator.validatePromotionExists(found, id);
+        return found;
     }
 
-    /**
-     * Among the active promotions, finds the one that would grant the
-     * highest monetary discount to the given sale. Only one promotion
-     * is ever applied to a sale (promotions are not cumulative).
-     *
-     * @param sale the sale to evaluate
-     * @return the best applicable promotion, or null if none applies
-     *         or the maximum discount is zero
-     */
     public Promotion findBestPromotionFor(Sale sale) {
+        if (sale == null) {
+            return null;
+        }
+
+        LocalDate evaluationDate = Optional.ofNullable(sale.getDate()).orElseGet(LocalDate::now);
+        List<Promotion> activePromotions = listActivePromotionsOnDate(evaluationDate);
+
         Promotion bestPromotion = null;
         double bestDiscount = 0.0;
 
-        for (Promotion promotion : listActivePromotions()) {
+        for (Promotion promotion : activePromotions) {
             double discount = promotion.calculateDiscount(sale);
             if (discount > bestDiscount) {
                 bestDiscount = discount;

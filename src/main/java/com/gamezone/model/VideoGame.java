@@ -28,7 +28,16 @@ public class VideoGame extends Product {
         return ageRating;
     }
      
-    
+        /**
+     * Video games belong to the {@link ProductCategory#VIDEOGAME} category.
+     *
+     * @return {@link ProductCategory#VIDEOGAME}
+     */
+    @Override
+    public ProductCategory getCategory() {
+        return ProductCategory.VIDEOGAME;
+    }
+
     @Override
 public String describe() {
     return getTitle() + " es un videojuego para " + platform + " , genero " + genre + " , calificado " + ageRating ; 

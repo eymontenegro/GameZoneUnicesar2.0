@@ -1,37 +1,75 @@
 package com.gamezone.persistence;
 
-import com.gamezone.model.Person;
+import com.gamezone.exceptions.PersistenceException;
 import com.gamezone.model.Client;
 import com.gamezone.model.Seller;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
+
 import java.io.IOException;
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.File;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Handles saving and loading Person objects (Client and Seller)
- * to and from a CSV file, so the people registered in the store
+ * to and from CSV files, so the people registered in the store
  * persist between application runs.
+ *
+ * <p>Every low-level {@link IOException} is wrapped in a
+ * {@link PersistenceException}; corrupt file content is reported with the
+ * file name and line number.</p> 
  */
-public class PersonRepository {
+public class PersonRepository implements PersonStorage {
 
-    private static final String CLIENTS_FILE = "data/clients.csv";
-    private static final String SELLERS_FILE = "data/sellers.csv";
+    private static final String DEFAULT_CLIENTS_FILE = "data/clients.csv";
+    private static final String DEFAULT_SELLERS_FILE = "data/sellers.csv";
+    private static final int SELLER_COLUMNS = 5;
+
+    private final String clientsFile;
+    private final String sellersFile;
+
+    /**
+     * Creates a repository that uses the default files
+     * {@code data/clients.csv} and {@code data/sellers.csv}.
+     */
+    public PersonRepository() {
+        this(DEFAULT_CLIENTS_FILE, DEFAULT_SELLERS_FILE);
+    }
+
+    /**
+     * Creates a repository that uses the given files (useful for tests).
+     *
+     * @param clientsFile path of the clients CSV file
+     * @param sellersFile path of the sellers CSV file
+     * @throws IllegalArgumentException if any path is null or blank
+     */
+    public PersonRepository(String clientsFile, String sellersFile) {
+        if (clientsFile == null || clientsFile.isBlank() || sellersFile == null || sellersFile.isBlank()) {
+            throw new IllegalArgumentException("Las rutas de los archivos de personas no pueden estar vacias");
+        }
+        this.clientsFile = clientsFile;
+        this.sellersFile = sellersFile;
+    }
 
     /**
      * Converts a single client into one CSV-formatted line.
      *
      * @param client the client to convert
      * @return a comma-separated line representing the client
+     * @throws IllegalArgumentException if any value cannot be stored safely
      */
     private String clientToCsvLine(Client client) {
-        String purchases = String.join(";", client.getPurchaseHistory());
-        return client.getId() + "," + client.getName() + "," + client.getPhone()
-                + "," + client.getEmail() + "," + purchases;
+        List<String> history = client.getPurchaseHistory();
+        if (history == null) {
+            throw new IllegalArgumentException("El historial de compras del cliente no puede ser nulo");
+        }
+        List<String> safeHistory = new ArrayList<>();
+        for (String saleId : history) {
+            safeHistory.add(CsvSupport.safe(saleId, "purchaseHistory", ";"));
+        }
+        return CsvSupport.safe(client.getId(), "id") + ","
+                + CsvSupport.safe(client.getName(), "name") + ","
+                + CsvSupport.safe(client.getPhone(), "phone") + ","
+                + CsvSupport.safe(client.getEmail(), "email") + ","
+                + String.join(";", safeHistory);
     }
 
     /**
@@ -39,122 +77,131 @@ public class PersonRepository {
      *
      * @param seller the seller to convert
      * @return a comma-separated line representing the seller
+     * @throws IllegalArgumentException if any value cannot be stored safely
      */
     private String sellerToCsvLine(Seller seller) {
-        return seller.getId() + "," + seller.getName() + "," + seller.getPhone()
-                + "," + seller.getEmployeeCode() + "," + seller.getShift();
+        return CsvSupport.safe(seller.getId(), "id") + ","
+                + CsvSupport.safe(seller.getName(), "name") + ","
+                + CsvSupport.safe(seller.getPhone(), "phone") + ","
+                + CsvSupport.safe(seller.getEmployeeCode(), "employeeCode") + ","
+                + CsvSupport.safe(seller.getShift(), "shift");
     }
 
     /**
      * Saves the full list of clients to the CSV file, overwriting
-     * any previous content.
+     * any previous content. All clients are validated before the file is
+     * opened, so an invalid client never leaves a truncated file behind.
      *
      * @param clients the list of clients to persist
-     * @throws RuntimeException if an I/O error occurs while writing
+     * @throws IllegalArgumentException if the list or any client is null or has
+     *         values that cannot be stored
+     * @throws PersistenceException if an I/O error occurs while writing
      */
+    @Override
     public void saveClients(List<Client> clients) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(CLIENTS_FILE))) {
-            for (Client client : clients) {
-                writer.write(clientToCsvLine(client));
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Error guardando los clientes: " + e.getMessage(), e);
+        if (clients == null) {
+            throw new IllegalArgumentException("La lista de clientes no puede ser nula");
         }
+        List<String> lines = new ArrayList<>();
+        for (Client client : clients) {
+            if (client == null) {
+                throw new IllegalArgumentException("La lista de clientes contiene un elemento nulo");
+            }
+            lines.add(clientToCsvLine(client));
+        }
+        CsvSupport.writeLines(clientsFile, lines, "cliente(s)");
     }
 
     /**
      * Saves the full list of sellers to the CSV file, overwriting
-     * any previous content.
+     * any previous content. All sellers are validated before the file is
+     * opened, so an invalid seller never leaves a truncated file behind.
      *
      * @param sellers the list of sellers to persist
-     * @throws RuntimeException if an I/O error occurs while writing
+     * @throws IllegalArgumentException if the list or any seller is null or has
+     *         values that cannot be stored
+     * @throws PersistenceException if an I/O error occurs while writing
      */
     public void saveSellers(List<Seller> sellers) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(SELLERS_FILE))) {
-            for (Seller seller : sellers) {
-                writer.write(sellerToCsvLine(seller));
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Error guardando los vendedores: " + e.getMessage(), e);
+        if (sellers == null) {
+            throw new IllegalArgumentException("La lista de vendedores no puede ser nula");
         }
+        List<String> lines = new ArrayList<>();
+        for (Seller seller : sellers) {
+            if (seller == null) {
+                throw new IllegalArgumentException("La lista de vendedores contiene un elemento nulo");
+            }
+            lines.add(sellerToCsvLine(seller));
+        }
+        CsvSupport.writeLines(sellersFile, lines, "vendedor(es)");
     }
 
     /**
      * Loads the full list of clients from the CSV file. If the file
      * does not exist yet (first run), returns an empty list instead
-     * of failing.
+     * of failing. Blank lines are ignored.
      *
      * @return the list of clients loaded from the file
-     * @throws RuntimeException if an I/O error occurs while reading
+     * @throws PersistenceException if an I/O error occurs while reading, or
+     *         the file contains a malformed line
      */
+    @Override
     public List<Client> loadClients() {
-        List<Client> clients = new ArrayList<>();
-        File file = new File(CLIENTS_FILE);
+        return CsvSupport.readLines(clientsFile, "los clientes", this::csvLineToClient);
+    }
 
-        if (!file.exists()) {
-            return clients;
+    /**
+     * Reconstructs a single Client from one CSV line.
+     *
+     * @param line a single line read from the CSV file
+     * @param lineNumber the 1-based number of the line, used in error messages
+     * @return the reconstructed Client object
+     * @throws PersistenceException if the line is malformed
+     */
+    private Client csvLineToClient(String line, int lineNumber) {
+        String[] parts = line.split(",", -1);
+        // id,name,phone,email[,purchases]
+        if (parts.length != 4 && parts.length != 5) {
+            throw CsvSupport.corruptLine(clientsFile, lineNumber,
+                    "se esperaban 4 o 5 columnas pero hay " + parts.length, null);
         }
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!line.isBlank()) {
-                    String[] parts = line.split(",", -1);
-                    String id = parts[0];
-                    String name = parts[1];
-                    String phone = parts[2];
-                    String email = parts[3];
-                    Client client = new Client(email, id, name, phone);
-                    if (parts.length > 4 && !parts[4].isEmpty()) {
-                        for (String saleId : parts[4].split(";")) {
-                            client.addPurchase(saleId);
-                        }
-                    }
-                    clients.add(client);
-                }
+        CsvSupport.requireNotBlank(parts[0], "id", clientsFile, lineNumber);
+        Client client = new Client(parts[3], parts[0], parts[1], parts[2]);
+        if (parts.length == 5 && !parts[4].isEmpty()) {
+            for (String saleId : parts[4].split(";")) {
+                client.addPurchase(saleId);
             }
-        } catch (IOException e) {
-            throw new RuntimeException("Error cargando los clientes: " + e.getMessage(), e);
         }
-
-        return clients;
+        return client;
     }
 
     /**
      * Loads the full list of sellers from the CSV file. If the file
      * does not exist yet (first run), returns an empty list instead
-     * of failing.
+     * of failing. Blank lines are ignored.
      *
      * @return the list of sellers loaded from the file
-     * @throws RuntimeException if an I/O error occurs while reading
+     * @throws PersistenceException if an I/O error occurs while reading, or
+     *         the file contains a malformed line
      */
+    @Override
     public List<Seller> loadSellers() {
-        List<Seller> sellers = new ArrayList<>();
-        File file = new File(SELLERS_FILE);
+        return CsvSupport.readLines(sellersFile, "los vendedores", this::csvLineToSeller);
+    }
 
-        if (!file.exists()) {
-            return sellers;
-        }
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!line.isBlank()) {
-                    String[] parts = line.split(",", -1);
-                    String id = parts[0];
-                    String name = parts[1];
-                    String phone = parts[2];
-                    String employeeCode = parts[3];
-                    String shift = parts[4];
-                    sellers.add(new Seller(employeeCode, shift, id, name, phone));
-                }
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Error cargando los vendedores: " + e.getMessage(), e);
-        }
-
-        return sellers;
+    /**
+     * Reconstructs a single Seller from one CSV line.
+     *
+     * @param line a single line read from the CSV file
+     * @param lineNumber the 1-based number of the line, used in error messages
+     * @return the reconstructed Seller object
+     * @throws PersistenceException if the line is malformed
+     */
+    private Seller csvLineToSeller(String line, int lineNumber) {
+        String[] parts = line.split(",", -1);
+        CsvSupport.requireColumns(parts, SELLER_COLUMNS, sellersFile, lineNumber);
+        CsvSupport.requireNotBlank(parts[0], "id", sellersFile, lineNumber);
+        // id,name,phone,employeeCode,shift
+        return new Seller(parts[3], parts[4], parts[0], parts[1], parts[2]);
     }
 }

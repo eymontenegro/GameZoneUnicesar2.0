@@ -1,6 +1,6 @@
 # GameZoneUnicesar 🎮
 
-GameZoneUnicesar is a management system that allows a video game store to register and list its products, keep track of its clients and employees, register sales transactions, apply promotional discounts automatically, process product returns, and manage product warranties (basic and extended).
+GameZoneUnicesar is a management system that allows a video game store to register and list its products, keep track of its clients and employees, register sales transactions, apply promotional discounts automatically, process product returns, manage product warranties (basic and extended), and enforce strict data validations and custom exception handling.
 
 ## 📋 Table of Contents
 
@@ -13,7 +13,7 @@ GameZoneUnicesar is a management system that allows a video game store to regist
 
 ## 🚀 Features & Modules
 
-The system is divided into six core modules:
+The system is divided into seven core modules:
 
 **Product Module (Product):**
 - Management of two product types: Video Games (`VideoGame`) and Consoles (`Console`).
@@ -60,36 +60,38 @@ The system is divided into six core modules:
 - Query of the warranty associated with a specific product within a specific sale, listing of all currently active warranties, and listing of warranties expiring soon (e.g., within the next 30 days).
 - Integration with the Sales module: registering a sale automatically generates the basic warranties for the consoles included, and adds the additional cost of any requested extended warranties to the sale total.
 
+**Validations & Exceptions Module (Validations & Exceptions):**
+- Custom unchecked exception hierarchy rooted at `GameZoneException` (extending `RuntimeException`), containing specialized subclasses: `ResourceNotFoundException`, `BusinessRuleException`, `InvalidDataException`, and `PersistenceException`.
+- Dedicated validation components (`ProductValidator`, `PersonValidator`, `SaleValidator`) located in `com.gamezone.validation` and invoked at the entry point of the service layer to inspect incoming data and business preconditions.
+- Robust exception handling in `ConsoleMenu` using a single `try` block with cascaded `catch` blocks ordered from specific exception types to the general `GameZoneException` safety net, ensuring clean error propagation and user-friendly feedback in Spanish.
+
 ## 🏗️ System Architecture
 
-The project implements an Object-Oriented 4-Layer Architecture:
+The project implements an Object-Oriented 5-Layer Architecture:
 
-**Layer 1: Domain/Model** — Contains the core entities and their inheritance relationships (`Product` → `VideoGame`/`Console`/`Accessory`, `Accessory` → `Controller`/`Cable`/`Memory`, `Person` → `Client`/`Seller`, `Promotion` → `PercentageDiscount`/`CategoryDiscount`/`BulkPurchaseDiscount`, `Warranty` → `BasicWarranty`/`ExtendedWarranty`). Compatibility with consoles is modeled through the `ConsoleCompatible` interface, implemented by `Controller` and `Memory`. `Return` references an existing `Sale` and its returned products. Each `Warranty` references its associated `Product` and `Sale`, and delegates its duration, type name, and additional cost to its concrete subclass.
+**Layer 1: Domain/Model** — Contains core entities, inheritance hierarchies (`Product`, `Person`, `Promotion`, `Warranty`), and the `ConsoleCompatible` interface.
 
-**Layer 2: Persistence** — Repositories handling reading and writing to CSV files, including `AccessoryRepository` for the accessory module, `PromotionRepository` for the promotion module, `ReturnRepository` for the return module, and `WarrantyRepository` for the warranty module (persists to `data/warranties.csv` using a type discriminator to distinguish `BasicWarranty` from `ExtendedWarranty` when loading).
+**Layer 2: Validation** — Stateless utility validators (`ProductValidator`, `PersonValidator`, `SaleValidator`) responsible for verifying input data integrity, formatting, and parameters at the service boundary without accessing persistence.
 
-**Layer 3: Service** — Business logic layer, processing rule validations and coordinating between modules (e.g., stock reduction during a sale, delegated to `ProductService` or `AccessoryService` depending on the item type sold; best-promotion selection delegated to `PromotionService`; return validation, stock restoration via `ProductService.restoreStock`, and the monthly balance report delegated to `ReturnService`; warranty assignment, activity checks, and expiring-soon queries delegated to `WarrantyService`). `SaleService.registerSale` was extended, additively, to generate a `BasicWarranty` for each `Console` sold via `instanceof`, and to optionally assign an `ExtendedWarranty` (adding its cost to the sale total) for the products indicated in a new `List<String> productIdsWithExtendedWarranty` parameter.
+**Layer 3: Persistence** — Repositories handling reading and writing to CSV files, wrapping low-level `IOException` inside `PersistenceException`.
 
-**Layer 4: UI** — Console-based menu for user interaction, including the "Accessory Management", "Promotion Management", "Return Management", and "Warranty Management" submenus, plus a monthly balance query option. The sales submenu now asks the user whether to add extended warranty to each console included in a new sale.
+**Layer 4: Service** — Business logic layer orchestrating workflows, validations, automatic inventory updates, promotions, returns, and warranties.
+
+**Layer 5: UI** — Console-based menu for user interaction with cascaded exception handling for precise error feedback.
 
 ## 📁 Project Structure
 
 ```
 GameZoneUnicesar/
 │
-├── data/                          # Persistence files (.csv)
-│   ├── products.csv
-│   ├── accessories.csv
-│   ├── clients.csv
-│   ├── sellers.csv
-│   ├── sales.csv
-│   ├── sale_details.csv
+├── data/                         # Persistence files (.csv)
 │   ├── promotions.csv
-│   ├── returns.csv
-│   └── warranties.csv
+│   ├── sellers.csv
+│   └── accessories.csv
+│   
 │
 ├── src/main/java/com/gamezone/
-│   ├── model/                     # Domain layer
+│   ├── model/                    # Domain layer
 │   │   ├── Person.java
 │   │   ├── Client.java
 │   │   ├── Seller.java
@@ -100,8 +102,12 @@ GameZoneUnicesar/
 │   │   ├── Controller.java
 │   │   ├── Cable.java
 │   │   ├── Memory.java
+│   │   ├── ProductCategory.java
 │   │   ├── ConsoleCompatible.java
 │   │   ├── Promotion.java
+│   │   ├── StockUpdater.java
+│   │   ├── CompatibleAccessory.java
+│   │   ├── PercentageBasedPromotion.java
 │   │   ├── PercentageDiscount.java
 │   │   ├── CategoryDiscount.java
 │   │   ├── BulkPurchaseDiscount.java
@@ -112,17 +118,43 @@ GameZoneUnicesar/
 │   │   ├── BasicWarranty.java
 │   │   └── ExtendedWarranty.java
 │   │
-│   ├── persistence/                # Persistence layer
+│   ├── exceptions/               # Exceptions layer 
+│   │   ├── GameZoneException.java
+│   │   ├── ResourceNotFoundException.java
+│   │   ├── BusinessRuleException.java
+│   │   ├── InvalidDataException.java
+│   │   └── PersistenceException.java
+│   │
+│   ├── validation/               # Validation layer 
+│   │   ├── PromotionValidator.java
+│   │   ├── ProductValidator.java
+│   │   ├── PersonValidator.java
+│   │   ├── AccessoryValidator.java
+│   │   ├── WarrantyValidator.java
+│   │   └── SaleValidator.java
+│   │
+│   ├── persistence/              # Persistence layer
 │   │   ├── PersonRepository.java
 │   │   ├── ProductRepository.java
-│   │   ├── AccessoryRepository.java
+│   │   ├── AccessoryStorage.java
 │   │   ├── PromotionRepository.java
+│   │   ├── ConsoleCsvMapper.java
+│   │   ├── VideoGameCsvMapper.java
+│   │   ├── ProductCsvMapper.java
+│   │   ├── PersonStorage.java
+│   │   ├── ProductStorage.java
+│   │   ├── PromotionStorage.java
+│   │   ├── ReturnStorage.java
+│   │   ├── SaleStorage.java
+│   │   ├── AccessoryRepository.java
 │   │   ├── SaleRepository.java
 │   │   ├── ReturnRepository.java
-│   │   └── WarrantyRepository.java
+│   │   ├── WarrantyRepository.java
+│   │   └── CsvSupport.java           # Shared CSV validation helper
 │   │
-│   ├── service/                    # Business logic layer
+│   ├── service/                  # Business logic layer
 │   │   ├── PersonService.java
+│   │   ├── MonthlyBalanceService.java
 │   │   ├── ProductService.java
 │   │   ├── AccessoryService.java
 │   │   ├── PromotionService.java
@@ -130,20 +162,53 @@ GameZoneUnicesar/
 │   │   ├── ReturnService.java
 │   │   └── WarrantyService.java
 │   │
-│   ├── ui/                         # Presentation layer
-│   │   └── (menu classes)
+│   ├── ui/                       # Presentation layer
+│   │   ├── Menu.java
+│   │   ├── AccessorySubMenu.java
+│   │   ├── PersonSubMenu.java
+│   │   ├── PromotionSubMenu.java
+│   │   ├── ProductSubMenu.java
+│   │   ├── SaleSubMenu.java
+│   │   ├── SaleReceiptFormatter.java
+│   │   ├── ReturnSubMenu.java
+│   │   ├── WarrantySubMenu.java
+│   │   ├── WarrantyCertificateFormatter.java
+│   │   └── ConsoleInput.java
 │   │
-│   └── Main.java                   # Entry point
+│   └── Main.java                 # Entry point
 │
-├── docs/                           # Analysis and design documentation
-│   ├── accessory-analysis.md
-│   ├── accessory-class-diagram.md
-│   ├── promotion-analysis.md
-│   ├── promotion-class-diagram.md
-│   ├── return-analysis.md
-│   ├── return-class-diagram.md
-│   ├── warranty-analysis.md
-│   └── warranty-class-diagram.md
+├── src/test/java/com/gamezone/persistence/   # Repository tests
+│   ├── ProductRepositoryTest.java
+│   ├── AccessoryRepositoryTest.java
+│   ├── PromotionRepositoryTest.java
+│   ├── SaleRepositoryTest.java
+│   ├── ReturnRepositoryTest.java
+│   ├── WarrantyRepositoryTest.java
+│   ├── CsvTestSupport.java
+│   └── PersonRepositoryTest.java      
+│
+├── docs/                         # Analysis and design documentation
+│   ├── analysis.md
+│   ├── class-diagram.md
+│   ├── hierarchy-diagram.md
+│   ├── layers-diagram.md
+│   ├── grasp-class-diagram.md
+│   ├── grasp-hierarchy-diagram.md
+│   ├── grasp-layers-diagram.md
+│   ├── ai-usage/
+│   │   ├── developer1-ai-log.md
+│   │   ├── developer2-ai-log.md
+│   │   ├── developer3-ai-log.md
+│   │   └── leader-ai-log.md
+│   │ 
+│   └── grasp-audit.md
+│       ├── developer1-audit.md
+│       ├── leader-audit.md
+│       ├── consolidated-audit.md
+│       ├── developer2-audit.md
+│       └── developer3-audit.md
+│
+│
 ├── TEAM.md
 └── README.md
 ```
@@ -158,7 +223,7 @@ GameZoneUnicesar/
 
 **1. Clone the repository**
 ```
-git clone https://github.com/eymontenegro/GameZoneUnicesar.git
+git clone https://github.com/eymontenegro/GameZoneUnicesar2.0.git
 ```
 
 **2. Open the project in NetBeans**
@@ -177,25 +242,6 @@ git clone https://github.com/eymontenegro/GameZoneUnicesar.git
 
 The application does not require an external relational database. All information is stored using comma-separated (`,`) CSV files located in the `/data` folder.
 
-**products.csv** — stores product information using the structure:
-```
-TYPE,ID,TITLE,PRICE,STOCK,EXTRA_PARAM_1,EXTRA_PARAM_2,EXTRA_PARAM_3
-```
-
-**accessories.csv** — stores accessory information (controllers, cables, and memories), including type-specific attributes and, for `Controller` and `Memory`, the list of compatible console IDs. Preloaded with at least one accessory of each type.
-
-**clients.csv** — stores client information (name, identification, phone, email).
-
-**sellers.csv** — stores seller information (name, identification, phone, employee code, shift).
-
-**sales.csv / sale_details.csv** — store sales transactions, linking the sale header with its line-item details. A line item can reference either a `Product` or an `Accessory`, since both extend the same base class.
-
-**promotions.csv** — stores promotion information (percentage, category, and bulk purchase discounts), including a type discriminator and each type's specific attributes, plus the validity period (start and end date). Preloaded with at least one promotion of each type.
-
-**returns.csv** — stores return information: the return id, date, the referenced sale id, the returned product ids, the reason, and the refunded amount. No preloaded data is required, since returns are generated from existing sales during application use.
-
-**warranties.csv** — stores warranty information: a type discriminator (`BasicWarranty` or `ExtendedWarranty`), the warranty id, the referenced product id, the referenced sale id, the start date, and the end date. No preloaded data is required, since warranties are generated automatically from console sales during application use.
-
 ## 👨‍💻 Technologies Used
 
 - Java
@@ -207,4 +253,4 @@ TYPE,ID,TITLE,PRICE,STOCK,EXTRA_PARAM_1,EXTRA_PARAM_2,EXTRA_PARAM_3
 
 ## 📌 Project Purpose
 
-GameZoneUnicesar was developed as an academic software project for Programación III at Universidad Popular del Cesar, focused on applying Object-Oriented Programming, layered architecture, inheritance, encapsulation, business logic, and data persistence in a video game store management scenario.
+GameZoneUnicesar was developed as an academic software project for Programación III at Universidad Popular del Cesar, focused on applying Object-Oriented Programming, layered architecture, inheritance, custom exceptions, validation design, data persistence, and collaborative software engineering in a video game store management scenario.

@@ -1,4 +1,3 @@
-
 package com.gamezone.model;
 
 /**
@@ -6,6 +5,7 @@ package com.gamezone.model;
  * Extends the abstract Accessory class.
  */
 public class Cable extends Accessory {
+
     private double length;
     private String connectorType;
 
@@ -21,7 +21,7 @@ public class Cable extends Accessory {
      */
     public Cable(String id, String title, double price, int stock, double length, String connectorType) {
         super(id, title, price, stock);
-        this.length = length;
+        setLength(length);
         this.connectorType = connectorType;
     }
 
@@ -40,6 +40,9 @@ public class Cable extends Accessory {
      * @param length the cable length to set
      */
     public void setLength(double length) {
+        if (length <= 0) {
+            throw new IllegalArgumentException("La longitud del cable debe ser mayor que cero.");
+        }
         this.length = length;
     }
 
@@ -60,6 +63,15 @@ public class Cable extends Accessory {
     public void setConnectorType(String connectorType) {
         this.connectorType = connectorType;
     }
+        /**
+     * Returns the kind of this accessory.
+     *
+     * @return {@code "CABLE"}
+     */
+    @Override
+    public String getAccessoryKind() {
+        return "CABLE";
+    }
 
     /**
      * Provides a text description of the cable.
@@ -68,6 +80,7 @@ public class Cable extends Accessory {
      */
     @Override
     public String describe() {
-        return getTitle() + " es un cable de conector " + connectorType + " con longitud de " + length + "m, precio: $" + getPrice() + ", stock: " + getStock();
+        return String.format("%s es un cable con conector %s y longitud de %.2fm, precio: $%.2f, stock: %d",
+                getTitle(), connectorType, length, getPrice(), getStock());
     }
 }

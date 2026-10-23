@@ -1,4 +1,3 @@
-
 package com.gamezone.model;
 
 /**
@@ -6,8 +5,9 @@ package com.gamezone.model;
  * Extends the base Product class.
  */
 public abstract class Accessory extends Product {
-/**
-     * Creates a new accessory with common product attributes and compatible console IDs.
+
+    /**
+     * Creates a new accessory with common product attributes.
      *
      * @param id the product identifier
      * @param title the product title
@@ -17,7 +17,35 @@ public abstract class Accessory extends Product {
     public Accessory(String id, String title, double price, int stock) {
         super(id, title, price, stock);
     }
-  }
+
+    /**
+     * Every accessory belongs to the {@link ProductCategory#ACCESSORY} category.
+     *
+     * @return {@link ProductCategory#ACCESSORY}
+     */
+    @Override
+    public ProductCategory getCategory() {
+        return ProductCategory.ACCESSORY;
+    }
+    
+    /**
+     * Returns the kind of accessory, as the text used to list accessories
+     * by type ("CONTROLLER", "CABLE" or "MEMORY").
+     *
+     * @return the accessory kind
+     */
+    public abstract String getAccessoryKind();
+    
+    @Override
+    public void updateStock(StockUpdater productStock, StockUpdater accessoryStock, int quantity) {
+        accessoryStock.updateStock(getId(), quantity);
+    }
+
+    @Override
+    public void restoreStock(StockUpdater productStock, StockUpdater accessoryStock, int quantity) {
+        accessoryStock.restoreStock(getId(), quantity);
+    }
+}
  
      
      

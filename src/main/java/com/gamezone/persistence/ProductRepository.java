@@ -1,133 +1,192 @@
 package com.gamezone.persistence;
 
+import com.gamezone.exceptions.PersistenceException;
 import com.gamezone.model.Product;
-import com.gamezone.model.VideoGame;
-import com.gamezone.model.Console;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
+
 import java.io.IOException;
-import java.util.List;
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.util.ArrayList;
-import java.io.File;
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Handles saving and loading Product objects (VideoGame and Console)
  * to and from a CSV file, so the product catalog persists between
- * application runs.
- */  
-public class ProductRepository {
-     /**
-     * Converts a single product into one CSV-formatted line, choosing
-     * which extra columns to include based on the product's real type.
+ * application runs. The common columns are handled here; the
+ * type-specific columns are delegated to one {@link ProductCsvMapper}
+ * per product type.
+ *
+ * <p>Every low-level {@link IOException} is wrapped in a
+ * {@link PersistenceException}; corrupt file content is reported with the
+ * file name and line number.</p>
+ */
+ public class ProductRepository implements ProductStorage{
+
+    private static final String DEFAULT_FILE = "data/products.csv";
+    private static final int COLUMNS = 8;
+    private static final int SPECIFIC_START = 5;
+    private final String filePath;
+    private final List<ProductCsvMapper> mappers = List.of(
+            new VideoGameCsvMapper(),
+            new ConsoleCsvMapper());
+
+    /**
+     * Creates a repository that uses the default file {@code data/products.csv}.
+     */
+    public ProductRepository() {
+        this(DEFAULT_FILE);
+    }
+
+    /**
+     * Creates a repository that uses the given file (useful for tests).
      *
-     * @param product the product to convert (VideoGame or Console)
+     * @param filePath path of the CSV file
+     * @throws IllegalArgumentException if the path is null or blank
+     */
+    public ProductRepository(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("La ruta del archivo de productos no puede estar vacia");
+        }
+        this.filePath = filePath;
+    }
+
+    /**
+     * Finds the mapper that handles the given product.
+     *
+     * @param product the product to convert
+    * @return the matching mapper, or null if no mapper supports it
+     */
+    private ProductCsvMapper mapperFor(Product product) {
+        for (ProductCsvMapper mapper : mappers) {
+            if (mapper.supports(product)) {
+                return mapper;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Finds the mapper registered for the given type code.
+     *
+     * @param typeCode the code read from the first column
+     * @return the matching mapper, or null if the code is unknown
+     */
+    private ProductCsvMapper mapperFor(String typeCode) {
+        for (ProductCsvMapper mapper : mappers) {
+            if (mapper.typeCode().equals(typeCode)) {
+                return mapper;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Converts a single product into one CSV-formatted line, delegating
+     * the extra columns to the mapper of the product's real type.
+     *
+     * @param product the product to convert (any type with a registered mapper)
      * @return a comma-separated line representing the product
      * @throws IllegalArgumentException if the product type is not recognized
+     *         or any of its values cannot be stored safely
      */
-    private String productToCsvLine(Product product){
-        String commonData = product.getId() + "," + product.getTitle() + "," + product.getPrice() + "," + product.getStock();
-        
-        String type;
-        String specificData;
-        
-        if (product instanceof VideoGame){
-            VideoGame vg = (VideoGame) product;
-            type = "VIDEOGAME";
-            specificData = vg.getPlatform() + "," + vg.getGenre() + "," + vg.getAgeRating();
-            
-        }else if (product instanceof Console){
-            Console c =(Console) product;
-            type = "CONSOLE";
-            specificData = c.getBrand() + "," + c.getModel() + "," + c.getGeneration();
-        } else {
-            throw new IllegalArgumentException("Unknown product type");
-}   
+    private String productToCsvLine(Product product) {
+        CsvSupport.requireValidPrice(product.getPrice(), "price");
+        if (product.getStock() < 0) {
+            throw new IllegalArgumentException("El stock no puede ser negativo: " + product.getStock());
+        }
+        String commonData = CsvSupport.safe(product.getId(), "id") + ","
+                + CsvSupport.safe(product.getTitle(), "title") + ","
+                + product.getPrice() + ","
+                + product.getStock();
 
-        return type + "," + commonData + "," + specificData;
-    
-    
+        ProductCsvMapper mapper = mapperFor(product);
+        if (mapper == null) {
+            throw new IllegalArgumentException("Unknown product type");
+        }
+        
+        String[] names = mapper.specificColumnNames();
+        String[] values = mapper.toSpecificColumns(product);
+        List<String> specificData = new ArrayList<>();
+        for (int i = 0; i < values.length; i++) {
+            specificData.add(CsvSupport.safe(values[i], names[i]));
+        }
+
+        return mapper.typeCode() + "," + commonData + "," + String.join(",", specificData);
+        
     }
+
     /**
      * Saves the full list of products to the CSV file, overwriting
-     * any previous content.
+     * any previous content. All products are validated and converted
+     * before the file is opened, so an invalid product never leaves a
+     * truncated file behind.
      *
      * @param products the list of products to persist
-     * @throws RuntimeException if an I/O error occurs while writing
+     * @throws IllegalArgumentException if the list or any product is null, of an
+     *         unknown type, or has values that cannot be stored
+     * @throws PersistenceException if an I/O error occurs while writing
      */
-    public void save(List<Product> products) {
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter("data/products.csv"))) {
-        for (Product product : products) {
-            writer.write(productToCsvLine(product));
-            writer.newLine();
+   @Override
+   public void saveAll(List<Product> products){
+        if (products == null) {
+            throw new IllegalArgumentException("La lista de productos no puede ser nula");
         }
-    } catch (IOException e) {
-        
-      throw new RuntimeException("Error saving products: " + e.getMessage(), e);
+        List<String> lines = new ArrayList<>();
+        for (Product product : products) {
+            if (product == null) {
+                throw new IllegalArgumentException("La lista de productos contiene un elemento nulo");
+            }
+            lines.add(productToCsvLine(product));
+        }
+
+        CsvSupport.writeLines(filePath, lines, "producto(s)");
     }
-}
-    
+
     /**
      * Reconstructs a single Product (VideoGame or Console) from one
      * CSV-formatted line, based on the type indicated in the first column.
      *
      * @param line a single line read from the CSV file
+     * @param lineNumber the 1-based number of the line, used in error messages
      * @return the reconstructed Product object
-     * @throws IllegalArgumentException if the product type is not recognized
+     * @throws PersistenceException if the line is malformed
      */
-    private Product csvLineToProduct(String line) {
-    String[] parts = line.split(",");
-    String type = parts[0];
-    String id = parts[1];
-    String title = parts[2];
-    double price = Double.parseDouble(parts[3]);
-    int stock = Integer.parseInt(parts[4]);
-    
-    
-        if (type.equals("VIDEOGAME")) {
-        String platform = parts[5];
-        String genre = parts[6];
-        String ageRating = parts[7];
-        return new VideoGame(platform, genre, ageRating, id, title, price, stock);
+    private Product csvLineToProduct(String line, int lineNumber) {
+        String[] parts = line.split(",", -1);
+        CsvSupport.requireColumns(parts, COLUMNS, filePath, lineNumber);
 
-    } else if (type.equals("CONSOLE")) {
-     String brand = parts[5];
-        String model = parts[6];
-        String generation = parts[7];
-        return new Console(brand, model, generation, id, title, price, stock); 
-        
-    } else {
-        throw new IllegalArgumentException("Unknown product type: " + type);
+        String type = parts[0];
+        String id = parts[1];
+        String title = parts[2];
+        CsvSupport.requireNotBlank(id, "id", filePath, lineNumber);
+        CsvSupport.requireNotBlank(title, "title", filePath, lineNumber);
+
+        double price = CsvSupport.parseDouble(parts[3], "price", filePath, lineNumber);
+        int stock = CsvSupport.parseInt(parts[4], "stock", filePath, lineNumber);
+        if (price < 0) {
+            throw CsvSupport.corruptLine(filePath, lineNumber, "el precio no puede ser negativo: " + price, null);
+        }
+        if (stock < 0) {
+            throw CsvSupport.corruptLine(filePath, lineNumber, "el stock no puede ser negativo: " + stock, null);
+        }
+
+        ProductCsvMapper mapper = mapperFor(type);
+        if (mapper == null) {
+            throw CsvSupport.corruptLine(filePath, lineNumber, "tipo de producto desconocido: '" + type + "'", null);
+        }
+         return mapper.fromColumns(id, title, price, stock, Arrays.copyOfRange(parts, SPECIFIC_START, COLUMNS));
     }
- }
-    
+
     /**
      * Loads the full list of products from the CSV file. If the file
      * does not exist yet (first run), returns an empty list instead
-     * of failing.
+     * of failing. Blank lines are ignored.
      *
      * @return the list of products loaded from the file
-     * @throws RuntimeException if an I/O error occurs while reading
+     * @throws PersistenceException if an I/O error occurs while reading, or
+     *         the file contains a malformed line
      */
+    @Override
     public List<Product> load() {
-    List<Product> products = new ArrayList<>();
-    File file = new File("data/products.csv");
-
-    if (!file.exists()) {
-        return products; 
+        return CsvSupport.readLines(filePath, "los productos", this::csvLineToProduct);
     }
-
-    try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-        
-        String line;
-        while ((line = reader.readLine()) != null) {
-            products.add(csvLineToProduct(line));
-        }
-    } catch (IOException e) {
-        throw new RuntimeException("Error loading products: " + e.getMessage(), e);
-    }
-
-    return products;
 }
-}
-

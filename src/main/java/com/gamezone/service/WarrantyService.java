@@ -1,134 +1,130 @@
 package com.gamezone.service;
 
+import com.gamezone.exceptions.InvalidDataException;
 import com.gamezone.model.BasicWarranty;
 import com.gamezone.model.ExtendedWarranty;
 import com.gamezone.model.Product;
 import com.gamezone.model.Sale;
 import com.gamezone.model.Warranty;
 import com.gamezone.persistence.WarrantyRepository;
+import com.gamezone.validation.WarrantyValidator;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Applies the business rules for managing warranties: assigning basic
- * and extended warranties, finding a warranty by product and sale,
- * and listing active or soon-to-expire warranties. Uses
- * WarrantyRepository to keep the file in sync with every change.
+ * and extended warranties, finding a warranty by ID or by product/sale,
+ * and listing active or soon-to-expire warranties. Uses WarrantyRepository
+ * to keep the file in sync with every change.
  */
 public class WarrantyService {
 
-    private List<Warranty> warranties;
-    private WarrantyRepository repository;
+    private final List<Warranty> warranties;
+    private final WarrantyRepository repository;
 
     /**
      * Creates the service injecting the repository, loading previously
-     * saved warranties from the file. Resolving Sale and Product
-     * references during load is the repository's responsibility.
+     * saved warranties from the file.
      *
      * @param repository the repository used to persist and load warranties
      */
     public WarrantyService(WarrantyRepository repository) {
-        this.repository = repository;
-        this.warranties = repository.loadAll();
+        this.repository = Objects.requireNonNull(repository, "El repositorio de garantías no puede ser nulo.");
+        List<Warranty> loaded = repository.loadAll();
+        this.warranties = Collections.synchronizedList(loaded != null ? new ArrayList<>(loaded) : new ArrayList<>());
     }
 
     /**
-     * Creates and persists an automatic basic warranty for the given
-     * product and sale. Basic warranties have no additional cost.
+     * Validates required entities before creating any warranty.
      *
-     * @param product the covered product
-     * @param sale the sale that generated the warranty
-     * @param startDate the warranty's start date (the sale's date)
-     * @return the newly created and persisted BasicWarranty
+     * @throws InvalidDataException if the product, the sale or the start date is invalid
      */
+    private void validateWarrantyCreation(Product product, Sale sale, LocalDate startDate) {
+        WarrantyValidator.validateWarrantyData(product, sale, startDate);
+    }
+
     public BasicWarranty assignBasicWarranty(Product product, Sale sale, LocalDate startDate) {
+        validateWarrantyCreation(product, sale, startDate);
         String id = UUID.randomUUID().toString();
         BasicWarranty warranty = new BasicWarranty(id, product, sale, startDate);
-        warranties.add(warranty);
-        repository.saveAll(warranties);
+        saveWarranty(warranty);
         return warranty;
     }
 
-    /**
-     * Creates and persists an extended warranty for the given product
-     * and sale, requested by the seller at the time of the sale.
-     *
-     * @param product the covered product
-     * @param sale the sale that generated the warranty
-     * @param startDate the warranty's start date (the sale's date)
-     * @return the newly created and persisted ExtendedWarranty
-     */
     public ExtendedWarranty assignExtendedWarranty(Product product, Sale sale, LocalDate startDate) {
+        validateWarrantyCreation(product, sale, startDate);
         String id = UUID.randomUUID().toString();
         ExtendedWarranty warranty = new ExtendedWarranty(id, product, sale, startDate);
-        warranties.add(warranty);
-        repository.saveAll(warranties);
+        saveWarranty(warranty);
         return warranty;
     }
 
-    /**
-     * Finds the warranty associated with a specific product within a
-     * specific sale.
-     *
-     * @param productId the id of the product
-     * @param saleId the id of the sale
-     * @return the matching warranty, or null if none exists
-     */
+    private void saveWarranty(Warranty warranty) {
+        synchronized (warranties) {
+            warranties.add(warranty);
+            repository.saveAll(new ArrayList<>(warranties));
+        }
+    }
+
+    public Warranty findById(String warrantyId) {
+        if (warrantyId == null || warrantyId.trim().isEmpty()) {
+            return null;
+        }
+        synchronized (warranties) {
+            return warranties.stream()
+                    .filter(Objects::nonNull)
+                    .filter(w -> warrantyId.equalsIgnoreCase(w.getId()))
+                    .findFirst()
+                    .orElse(null);
+        }
+    }
+
     public Warranty findWarrantyByProduct(String productId, String saleId) {
-        for (Warranty warranty : warranties) {
-            if (warranty.getProduct().getId().equals(productId) && warranty.getSale().getId().equals(saleId)) {
-                return warranty;
-            }
+        if (productId == null || saleId == null) {
+            return null;
         }
-        return null;
+        synchronized (warranties) {
+            return warranties.stream()
+                    .filter(Objects::nonNull)
+                    .filter(w -> w.getProduct() != null && w.getSale() != null)
+                    .filter(w -> productId.equalsIgnoreCase(w.getProduct().getId()) && saleId.equalsIgnoreCase(w.getSale().getId()))
+                    .findFirst()
+                    .orElse(null);
+        }
     }
 
-    /**
-     * Returns the full list of currently registered warranties.
-     *
-     * @return the list of all warranties
-     */
     public List<Warranty> listAllWarranties() {
-        return warranties;
-    }
-
-    /**
-     * Returns the warranties that are active on the current date.
-     *
-     * @return the list of currently active warranties
-     */
-    public List<Warranty> listActiveWarranties() {
-        List<Warranty> activeWarranties = new ArrayList<>();
-        LocalDate today = LocalDate.now();
-        for (Warranty warranty : warranties) {
-            if (warranty.isActive(today)) {
-                activeWarranties.add(warranty);
-            }
+        synchronized (warranties) {
+            return new ArrayList<>(warranties);
         }
-        return activeWarranties;
     }
 
-    /**
-     * Returns the warranties whose end date falls within the given
-     * number of days from today (inclusive), and that have not
-     * already expired.
-     *
-     * @param daysAhead the number of days to look ahead
-     * @return the list of warranties expiring within that window
-     */
+    public List<Warranty> listActiveWarranties() {
+        LocalDate today = LocalDate.now();
+        synchronized (warranties) {
+            return warranties.stream()
+                    .filter(Objects::nonNull)
+                    .filter(w -> w.isActive(today))
+                    .collect(Collectors.toList());
+        }
+    }
+
     public List<Warranty> listWarrantiesExpiringSoon(int daysAhead) {
-        List<Warranty> expiringSoon = new ArrayList<>();
+        WarrantyValidator.validateDaysAhead(daysAhead);
         LocalDate today = LocalDate.now();
         LocalDate limit = today.plusDays(daysAhead);
-        for (Warranty warranty : warranties) {
-            LocalDate endDate = warranty.getEndDate();
-            if (!endDate.isBefore(today) && !endDate.isAfter(limit)) {
-                expiringSoon.add(warranty);
-            }
+
+        synchronized (warranties) {
+            return warranties.stream()
+                    .filter(Objects::nonNull)
+                    .filter(w -> w.expiresBetween(today, limit))
+                    .collect(Collectors.toList());
         }
-        return expiringSoon;
     }
 }

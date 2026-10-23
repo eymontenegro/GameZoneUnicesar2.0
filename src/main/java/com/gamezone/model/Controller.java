@@ -1,16 +1,14 @@
-
 package com.gamezone.model;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Concrete class representing a video game controller.
- * Implements ConsoleCompatible to manage compatibility with consoles.
+ * Inherits console compatibility from CompatibleAccessory.
  */
-public class Controller extends Accessory implements ConsoleCompatible {
+public class Controller extends CompatibleAccessory {
+
     private String connectionType;
-    private List<String> compatibleConsoleIds;
 
     /**
      * Constructs a new Controller product with the specified details.
@@ -23,41 +21,45 @@ public class Controller extends Accessory implements ConsoleCompatible {
      * @param compatibleConsoleIds list of console IDs compatible with this controller
      */
     public Controller(String id, String title, double price, int stock, String connectionType, List<String> compatibleConsoleIds) {
-        super(id, title, price, stock);
+        super(id, title, price, stock, compatibleConsoleIds);
         this.connectionType = connectionType;
-        this.compatibleConsoleIds = (compatibleConsoleIds != null) ? compatibleConsoleIds : new ArrayList<>();
     }
 
+    /**
+     * Gets the connection type of the controller.
+     *
+     * @return the connection type
+     */
     public String getConnectionType() {
         return connectionType;
     }
 
+    /**
+     * Sets the connection type of the controller.
+     *
+     * @param connectionType the connection type to set
+     */
     public void setConnectionType(String connectionType) {
         this.connectionType = connectionType;
     }
-
+        /**
+     * Returns the kind of this accessory.
+     *
+     * @return {@code "CONTROLLER"}
+     */
     @Override
-    public List<String> getCompatibleConsoleIds() {
-        return new ArrayList<>(this.compatibleConsoleIds);
+    public String getAccessoryKind() {
+        return "CONTROLLER";
     }
 
-    @Override
-    public void addCompatibleConsole(String consoleId) {
-        if (this.compatibleConsoleIds == null) {
-            this.compatibleConsoleIds = new ArrayList<>();
-        }
-        if (consoleId != null && !this.compatibleConsoleIds.contains(consoleId)) {
-            this.compatibleConsoleIds.add(consoleId);
-        }
-    }
-
-    @Override
-    public boolean isCompatibleWith(String consoleId) {
-        return this.compatibleConsoleIds != null && this.compatibleConsoleIds.contains(consoleId);
-    }
-
+    /**
+     * Provides a text description of the controller accessory.
+     *
+     * @return a formatted description string
+     */
     @Override
     public String describe() {
-        return getTitle() + " es un control con conexion " + connectionType + ", precio: $" + getPrice() + ", stock: " + getStock();
+        return String.format("%s es un control con conexión %s, precio: $%.2f, stock: %d",
+                getTitle(), connectionType, getPrice(), getStock());
     }
 }

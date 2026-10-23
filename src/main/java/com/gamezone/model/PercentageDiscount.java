@@ -1,4 +1,3 @@
-
 package com.gamezone.model;
 
 import java.time.LocalDate;
@@ -6,8 +5,7 @@ import java.time.LocalDate;
 /**
  * Concrete promotion that applies a global percentage discount on the sale subtotal.
  */
-public class PercentageDiscount extends Promotion {
-    private double percentage;
+public class PercentageDiscount extends PercentageBasedPromotion {
 
     /**
      * Constructs a new PercentageDiscount promotion.
@@ -16,23 +14,18 @@ public class PercentageDiscount extends Promotion {
      * @param name the promotion name
      * @param startDate validity start date
      * @param endDate validity end date
-     * @param percentage discount percentage (e.g., 15.0 for 15%)
+     * @param percentage discount percentage between 0 and 100 (e.g., 15.0 for 15%)
      */
     public PercentageDiscount(String id, String name, LocalDate startDate, LocalDate endDate, double percentage) {
         super(id, name, startDate, endDate);
-        this.percentage = percentage;
-    }
-
-    public double getPercentage() {
-        return percentage;
-    }
-
-    public void setPercentage(double percentage) {
-        this.percentage = percentage;
+        setPercentage(percentage);
     }
 
     @Override
     public double calculateDiscount(Sale sale) {
-        return sale.calculateTotal() * (percentage / 100.0);
+        if (sale == null) {
+            return 0.0;
+        }
+        return applyPercentage(sale.calculateTotal());
     }
 }

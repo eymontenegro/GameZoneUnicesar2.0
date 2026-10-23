@@ -14,47 +14,76 @@ import com.gamezone.service.PromotionService;
 import com.gamezone.service.ReturnService;
 import com.gamezone.service.SaleService;
 import com.gamezone.service.WarrantyService;
+import com.gamezone.ui.AccessorySubMenu;
+import com.gamezone.ui.ConsoleInput;
 import com.gamezone.ui.Menu;
+import com.gamezone.ui.PersonSubMenu;
+import com.gamezone.ui.ProductSubMenu;
+import com.gamezone.ui.PromotionSubMenu;
+import com.gamezone.ui.ReturnSubMenu;
+import com.gamezone.ui.SaleSubMenu;
+import com.gamezone.ui.WarrantySubMenu;
+
+import java.util.Scanner;
 
 /**
- * Main entry point for the GameZone application.
- * Initializes repositories, business services, and launches the main console menu.
+ * Main application entry point for the GameZone Unicesar system.
+ * Responsible for configuring CSV persistence file paths, initializing repositories,
+ * wiring business layer dependencies, creating the sub-menus, and bootstrapping the
+ * interactive console user interface.
+ *
+ * @author GameZone Technical Team
+ * @version 1.0
  */
 public class Main {
 
     /**
-     * Main execution method.
+     * Private constructor to prevent instantiation of this utility/main class.
+     */
+    private Main() {
+        // Utility class
+    }
+
+    /**
+     * Main execution method that starts the GameZone application lifecycle.
      *
-     * @param args command-line arguments
+     * @param args command-line arguments passed during application startup
      */
     public static void main(String[] args) {
-        // Initialize independent services and repositories
-        ProductService productService = new ProductService();
-        AccessoryRepository accessoryRepository = new AccessoryRepository();
-        AccessoryService accessoryService = new AccessoryService(accessoryRepository);
-        PersonService personService = new PersonService();
+        // 1. Define CSV storage file paths for the persistence layer
+        String clientsPath = "data/clients.csv";
+        String sellersPath = "data/sellers.csv";
+        String productsPath = "data/products.csv";
+        String accessoriesPath = "data/accessories.csv";
+        String promotionsPath = "data/promotions.csv";
+        String salesPath = "data/sales.csv";
+        String returnsPath = "data/returns.csv";
+        String warrantiesPath = "data/warranties.csv";
 
-        PromotionRepository promotionRepository = new PromotionRepository();
-        PromotionService promotionService = new PromotionService(promotionRepository);
+        // 2. Initialize Repositories with their respective file paths and cross-dependencies
+        PersonRepository personRepository = new PersonRepository(clientsPath, sellersPath);
+        ProductRepository productRepository = new ProductRepository(productsPath);
+        AccessoryRepository accessoryRepository = new AccessoryRepository(accessoriesPath);
+        PromotionRepository promotionRepository = new PromotionRepository(promotionsPath);
+        SaleRepository saleRepository = new SaleRepository(salesPath);
+        ReturnRepository returnRepository = new ReturnRepository(returnsPath);
 
-        SaleRepository saleRepository = new SaleRepository();
-
-        // WarrantyRepository needs its own ProductRepository and PersonRepository
-        // instances to resolve Sale/Product references, since ProductService and
-        // PersonService keep their repositories private. These extra instances
-        // only read/write the same CSV files and hold no in-memory state, so
-        // having a second instance alongside the one used inside each service
-        // is safe.
         WarrantyRepository warrantyRepository = new WarrantyRepository(
                 saleRepository,
-                new ProductRepository(),
-                new PersonRepository(),
+                productRepository,
+                personRepository,
                 accessoryRepository,
-                promotionRepository
+                promotionRepository,
+                warrantiesPath
         );
+
+        // 3. Initialize Business Services in correct dependency hierarchy order
+        ProductService productService = new ProductService(productRepository);
+        AccessoryService accessoryService = new AccessoryService(accessoryRepository);
+        PersonService personService = new PersonService(personRepository);
+        PromotionService promotionService = new PromotionService(promotionRepository);
         WarrantyService warrantyService = new WarrantyService(warrantyRepository);
 
-        // Initialize SaleService with the required parameters, including WarrantyService
         SaleService saleService = new SaleService(
                 saleRepository,
                 personService,
@@ -64,14 +93,31 @@ public class Main {
                 warrantyService
         );
 
-        // ReturnRepository only needs SaleService, since SaleService already
-        // knows how to resolve both products and accessories by id.
-        ReturnRepository returnRepository = new ReturnRepository();
-        ReturnService returnService = new ReturnService(returnRepository, saleService, productService);
+        ReturnService returnService = new ReturnService(returnRepository, saleService);
 
-        // Initialize the main menu with all services, including WarrantyService, and display it
-        Menu mainMenu = new Menu(productService, accessoryService, personService,
-                promotionService, saleService, returnService, warrantyService);
+        // 4. Create the shared console reader and one sub-menu per module,
+        //    each receiving only the services it uses
+        ConsoleInput input = new ConsoleInput(new Scanner(System.in));
+        ProductSubMenu productSubMenu = new ProductSubMenu(productService, input);
+        AccessorySubMenu accessorySubMenu = new AccessorySubMenu(accessoryService, input);
+        PersonSubMenu personSubMenu = new PersonSubMenu(personService, input);
+        PromotionSubMenu promotionSubMenu = new PromotionSubMenu(promotionService, input);
+        ReturnSubMenu returnSubMenu = new ReturnSubMenu(returnService, input);
+        WarrantySubMenu warrantySubMenu = new WarrantySubMenu(warrantyService, input);
+        SaleSubMenu saleSubMenu = new SaleSubMenu(saleService, input);
+
+        // 5. Initialize the main navigation menu controller and launch it
+        Menu mainMenu = new Menu(
+                input,
+                productSubMenu,
+                accessorySubMenu,
+                personSubMenu,
+                promotionSubMenu,
+                returnSubMenu,
+                warrantySubMenu,
+                saleSubMenu
+        );
+
         mainMenu.displayMenu();
     }
 }

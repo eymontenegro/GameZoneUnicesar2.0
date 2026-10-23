@@ -1,8 +1,14 @@
 package com.gamezone.service;
 
-import com.gamezone.persistence.PersonRepository;
+import com.gamezone.exceptions.BusinessRuleException;
+import com.gamezone.exceptions.InvalidDataException;
+import com.gamezone.exceptions.ResourceNotFoundException;
+import com.gamezone.persistence.PersonStorage;
+import com.gamezone.validation.PersonValidator;
 import com.gamezone.model.Client;
 import com.gamezone.model.Seller;
+
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -10,28 +16,60 @@ import java.util.List;
  * clients, listing clients and sellers, and consulting a client's
  * purchase history. Sellers are preloaded and are not registered
  * through this service.
- * Uses PersonRepository to keep the files in sync with every change.
+ * Uses PersonStorage to keep the stored data in sync with every change.
  */
 public class PersonService {
 
     private List<Client> clients;
     private List<Seller> sellers;
-    private PersonRepository repository;
+    private PersonStorage repository;
 
     /**
-     * Creates the service and loads any previously saved clients and
-     * sellers from their files, so the information is available as
-     * soon as the application starts.
+     * Creates the service using the provided storage instance.
+     *
+     * @param repository the storage used to load and save clients and sellers
      */
-    public PersonService() {
-        this.repository = new PersonRepository();
-        this.clients = repository.loadClients();
-        this.sellers = repository.loadSellers();
+    public PersonService(PersonStorage repository) {
+        if (repository == null) {
+            throw new InvalidDataException("repositorio", "no puede ser nulo");
+        }
+        this.repository = repository;
+        List<Client> loadedClients = repository.loadClients();
+        List<Seller> loadedSellers = repository.loadSellers();
+        this.clients = (loadedClients != null) ? loadedClients : new ArrayList<>();
+        this.sellers = (loadedSellers != null) ? loadedSellers : new ArrayList<>();
     }
 
     /**
-     * Registers a new client and immediately saves the updated list
-     * to the file.
+     * Validates client registration parameters and checks for existing duplicates.
+     *
+     * @param id    the client's identification
+     * @param name  the client's full name
+     * @param phone the client's phone number
+     * @param email the client's email
+     * @throws InvalidDataException  if a required field is empty or the email is malformed
+     * @throws BusinessRuleException if a client with the same ID already exists
+     */
+    private void validateClientData(String id, String name, String phone, String email) {
+        PersonValidator.validatePersonData(id, name, email, phone);
+        PersonValidator.validateUniquePerson(clients, id);
+    }
+
+    /**
+     * Checks if a client with the given ID already exists.
+     */
+    public boolean existsClientById(String id) {
+        if (id == null) return false;
+        for (Client client : clients) {
+            if (client != null && id.equalsIgnoreCase(client.getId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Registers a new client and immediately saves the updated list to the file.
      *
      * @param id the client's identification
      * @param name the client's full name
@@ -39,6 +77,7 @@ public class PersonService {
      * @param email the client's email
      */
     public void registerClient(String id, String name, String phone, String email) {
+        validateClientData(id, name, phone, email);
         Client newClient = new Client(email, id, name, phone);
         clients.add(newClient);
         repository.saveClients(clients);
@@ -67,15 +106,22 @@ public class PersonService {
      *
      * @param id the id of the client to find
      * @return the client with that id
-     * @throws IllegalArgumentException if no client with that id exists
+     * @throws InvalidDataException      if id is null
+     * @throws ResourceNotFoundException if no client with that id exists
      */
     public Client findClientById(String id) {
+        if (id == null) {
+            throw new InvalidDataException("identificador del cliente", "no puede ser nulo");
+        }
+        Client found = null;
         for (Client client : clients) {
-            if (client.getId().equals(id)) {
-                return client;
+            if (client != null && id.equalsIgnoreCase(client.getId())) {
+                found = client;
+                break;
             }
         }
-        throw new IllegalArgumentException("No existe un cliente con el id: " + id);
+        PersonValidator.validatePersonExists(found, id);
+        return found;
     }
 
     /**
@@ -83,15 +129,22 @@ public class PersonService {
      *
      * @param id the id of the seller to find
      * @return the seller with that id
-     * @throws IllegalArgumentException if no seller with that id exists
+     * @throws InvalidDataException      if id is null
+     * @throws ResourceNotFoundException if no seller with that id exists
      */
     public Seller findSellerById(String id) {
+        if (id == null) {
+            throw new InvalidDataException("identificador del vendedor", "no puede ser nulo");
+        }
+        Seller found = null;
         for (Seller seller : sellers) {
-            if (seller.getId().equals(id)) {
-                return seller;
+            if (seller != null && id.equalsIgnoreCase(seller.getId())) {
+                found = seller;
+                break;
             }
         }
-        throw new IllegalArgumentException("No existe un vendedor con el id: " + id);
+        PersonValidator.validatePersonExists(found, id);
+        return found;
     }
 
     /**
@@ -100,8 +153,13 @@ public class PersonService {
      *
      * @param clientId the id of the client who made the purchase
      * @param saleId the id of the sale to register
+     * @throws InvalidDataException      if saleId is null or empty
+     * @throws ResourceNotFoundException if the client does not exist
      */
     public void registerPurchase(String clientId, String saleId) {
+        if (saleId == null || saleId.trim().isEmpty()) {
+            throw new InvalidDataException("identificador de la venta", "no puede ser nulo ni vacío");
+        }
         Client client = findClientById(clientId);
         client.addPurchase(saleId);
         repository.saveClients(clients);
