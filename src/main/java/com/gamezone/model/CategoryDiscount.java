@@ -66,14 +66,7 @@ public class CategoryDiscount extends PercentageBasedPromotion {
             return false;
         }
 
-        String cat = category.trim().toUpperCase();
-        if (cat.equals("VIDEOGAME")) {
-            return product instanceof VideoGame;
-        } else if (cat.equals("CONSOLE")) {
-            return product instanceof Console;
-        } else if (cat.equals("ACCESSORY")) {
-            return product instanceof Accessory;
-        }
-        return false;
+                String cat = category.trim().toUpperCase();
+        return product.getCategory().name().equals(cat);
     }
 }

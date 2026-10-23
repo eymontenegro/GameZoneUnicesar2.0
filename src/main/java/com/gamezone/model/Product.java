@@ -50,6 +50,13 @@ public abstract class Product {
      * @return a text description of the product
      */
     public abstract String describe();
+    
+    /**
+     * Returns the commercial category this product belongs to.
+     *
+     * @return the product category
+     */
+    public abstract ProductCategory getCategory();
 
     /**
      * Reduces the available stock by the given quantity.

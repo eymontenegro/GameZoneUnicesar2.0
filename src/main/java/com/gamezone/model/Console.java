@@ -51,6 +51,15 @@ public class Console extends Product {
     public void setGeneration(String generation) {
         this.generation = generation;
     }
+        /**
+     * Consoles belong to the {@link ProductCategory#CONSOLE} category.
+     *
+     * @return {@link ProductCategory#CONSOLE}
+     */
+    @Override
+    public ProductCategory getCategory() {
+        return ProductCategory.CONSOLE;
+    }
 
     @Override
     public String describe() {
