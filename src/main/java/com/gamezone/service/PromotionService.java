@@ -8,7 +8,7 @@ import com.gamezone.model.CategoryDiscount;
 import com.gamezone.model.PercentageDiscount;
 import com.gamezone.model.Promotion;
 import com.gamezone.model.Sale;
-import com.gamezone.persistence.PromotionRepository;
+import com.gamezone.persistence.PromotionStorage;
 import com.gamezone.validation.PromotionValidator;
 
 import java.time.LocalDate;
@@ -23,12 +23,12 @@ import java.util.stream.Collectors;
  * Applies the business rules for managing promotions: registering new
  * percentage, category, and bulk-purchase promotions, listing them,
  * and selecting the best applicable promotion for a given sale.
- * Uses PromotionRepository to keep persistence synchronized.
+ * Uses PromotionStorage to keep persistence synchronized.
  */
 public class PromotionService {
 
     private final List<Promotion> promotions;
-    private final PromotionRepository repository;
+    private final PromotionStorage repository;
 
     /**
      * Constructs the service using the given repository and loads any
@@ -36,7 +36,7 @@ public class PromotionService {
      *
      * @param repository the repository used to persist promotions
      */
-    public PromotionService(PromotionRepository repository) {
+    public PromotionService(PromotionStorage repository) {
         this.repository = Objects.requireNonNull(repository, "PromotionRepository cannot be null");
         List<Promotion> loadedPromotions = repository.loadAll();
         this.promotions = Collections.synchronizedList(loadedPromotions != null ? new ArrayList<>(loadedPromotions) : new ArrayList<>());
