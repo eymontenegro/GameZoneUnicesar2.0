@@ -35,6 +35,16 @@ public abstract class Accessory extends Product {
      * @return the accessory kind
      */
     public abstract String getAccessoryKind();
+    
+    @Override
+    public void updateStock(StockUpdater productStock, StockUpdater accessoryStock, int quantity) {
+        accessoryStock.updateStock(getId(), quantity);
+    }
+
+    @Override
+    public void restoreStock(StockUpdater productStock, StockUpdater accessoryStock, int quantity) {
+        accessoryStock.restoreStock(getId(), quantity);
+    }
 }
  
      
