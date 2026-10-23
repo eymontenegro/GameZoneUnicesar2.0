@@ -57,7 +57,16 @@ public abstract class Product {
      * @return the product category
      */
     public abstract ProductCategory getCategory();
-
+    
+    /**
+     * Tells whether there is enough stock to serve the given quantity.
+     *
+     * @param quantity the number of units requested
+     * @return true if the available stock covers the quantity
+     */
+    public boolean hasStockFor(int quantity) {
+        return stock >= quantity;
+    }
     /**
      * Reduces the available stock by the given quantity.
      *
@@ -69,7 +78,7 @@ public abstract class Product {
         if (quantity <= 0) {
             throw new IllegalArgumentException("La cantidad a descontar debe ser mayor que cero.");
         }
-        if (stock < quantity) {
+         if (!hasStockFor(quantity)){
             throw new IllegalArgumentException("Stock insuficiente: disponible " + stock + ", solicitado " + quantity);
         }
         this.stock -= quantity;
