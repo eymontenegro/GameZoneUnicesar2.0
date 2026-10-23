@@ -1,16 +1,14 @@
 package com.gamezone.model;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Concrete class representing a video game controller.
- * Implements ConsoleCompatible to manage compatibility with consoles.
+ * Inherits console compatibility from CompatibleAccessory.
  */
-public class Controller extends Accessory implements ConsoleCompatible {
+public class Controller extends CompatibleAccessory {
 
     private String connectionType;
-    private List<String> compatibleConsoleIds;
 
     /**
      * Constructs a new Controller product with the specified details.
@@ -23,9 +21,8 @@ public class Controller extends Accessory implements ConsoleCompatible {
      * @param compatibleConsoleIds list of console IDs compatible with this controller
      */
     public Controller(String id, String title, double price, int stock, String connectionType, List<String> compatibleConsoleIds) {
-        super(id, title, price, stock);
+        super(id, title, price, stock, compatibleConsoleIds);
         this.connectionType = connectionType;
-        this.compatibleConsoleIds = (compatibleConsoleIds != null) ? new ArrayList<>(compatibleConsoleIds) : new ArrayList<>();
     }
 
     /**
@@ -44,42 +41,6 @@ public class Controller extends Accessory implements ConsoleCompatible {
      */
     public void setConnectionType(String connectionType) {
         this.connectionType = connectionType;
-    }
-
-    /**
-     * Gets a copy of the list of compatible console identifiers.
-     *
-     * @return a list containing the compatible console IDs
-     */
-    @Override
-    public List<String> getCompatibleConsoleIds() {
-        return new ArrayList<>(this.compatibleConsoleIds);
-    }
-
-    /**
-     * Adds a new console identifier to the compatibility list if not already present.
-     *
-     * @param consoleId the console ID to add
-     */
-    @Override
-    public void addCompatibleConsole(String consoleId) {
-        if (this.compatibleConsoleIds == null) {
-            this.compatibleConsoleIds = new ArrayList<>();
-        }
-        if (consoleId != null && !consoleId.trim().isEmpty() && !this.compatibleConsoleIds.contains(consoleId)) {
-            this.compatibleConsoleIds.add(consoleId);
-        }
-    }
-
-    /**
-     * Checks if this controller is compatible with the given console ID.
-     *
-     * @param consoleId the console ID to verify
-     * @return true if compatible, false otherwise
-     */
-    @Override
-    public boolean isCompatibleWith(String consoleId) {
-        return this.compatibleConsoleIds != null && this.compatibleConsoleIds.contains(consoleId);
     }
 
     /**
