@@ -18,6 +18,9 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 
+import static com.gamezone.persistence.CsvTestSupport.assertCorrupt;
+import static com.gamezone.persistence.CsvTestSupport.loadFails;
+import static com.gamezone.persistence.CsvTestSupport.writeFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -63,19 +66,11 @@ class SaleRepositoryTest {
     }
 
     private List<Sale> load() {
-        return repository.loadAll(List.of(client), List.of(seller), List.of(game, console), List.of(), List.of());
-    }
-
-    private void writeFile(String... lines) throws IOException {
-        Files.writeString(file, String.join("\n", lines) + "\n");
+        return repository.loadAll(List.of(client), List.of(seller), List.of(game, console), List.of());
     }
 
     private String validLine() {
         return "V1,2026-03-15,S1,C1,Ninguna,0.0,0.0,200.0,P1:2:100.0";
-    }
-
-    private PersistenceException loadFails() {
-        return assertThrows(PersistenceException.class, this::load);
     }
 
     // ---------- normal behaviour ----------
@@ -121,7 +116,7 @@ class SaleRepositoryTest {
     @Test
     @DisplayName("Las lineas en blanco se ignoran")
     void blankLinesAreIgnored() throws IOException {
-        writeFile("", validLine(), "   ", "");
+        writeFile(file, "", validLine(), "   ", "");
 
         assertEquals(1, load().size());
     }
@@ -198,8 +193,8 @@ class SaleRepositoryTest {
     @Test
     @DisplayName("Linea con columnas de menos")
     void loadFailsWithTooFewColumns() throws IOException {
-        writeFile("V1,2026-03-15,S1");
-        PersistenceException e = loadFails();
+        writeFile(file, "V1,2026-03-15,S1");
+        PersistenceException e = loadFails(this::load);
         assertTrue(e.getMessage().contains("linea 1"));
         assertTrue(e.getMessage().contains("columnas"));
     }
@@ -207,15 +202,15 @@ class SaleRepositoryTest {
     @Test
     @DisplayName("Linea con columnas de mas")
     void loadFailsWithTooManyColumns() throws IOException {
-        writeFile(validLine() + ",extra");
-        loadFails();
+        writeFile(file, validLine() + ",extra");
+        assertCorrupt(this::load, file, 1, "se esperaban 9 columnas pero hay 10");
     }
 
     @Test
     @DisplayName("Fecha invalida: el mensaje trae archivo y numero de linea")
     void loadFailsWithBadDate() throws IOException {
-        writeFile(validLine(), "V2,15/03/2026,S1,C1,Ninguna,0.0,0.0,0.0,");
-        PersistenceException e = loadFails();
+        writeFile(file, validLine(), "V2,15/03/2026,S1,C1,Ninguna,0.0,0.0,0.0,");
+        PersistenceException e = loadFails(this::load);
         assertTrue(e.getMessage().contains("linea 2"));
         assertTrue(e.getMessage().contains("sales.csv"));
         assertNotNull(e.getCause());
@@ -224,59 +219,59 @@ class SaleRepositoryTest {
     @Test
     @DisplayName("Montos no numericos, negativos o infinitos")
     void loadFailsWithBadAmounts() throws IOException {
-        writeFile("V1,2026-03-15,S1,C1,Ninguna,abc,0.0,0.0,");
-        loadFails();
-        writeFile("V1,2026-03-15,S1,C1,Ninguna,-5.0,0.0,0.0,");
-        loadFails();
-        writeFile("V1,2026-03-15,S1,C1,Ninguna,0.0,0.0,Infinity,");
-        loadFails();
-        writeFile("V1,2026-03-15,S1,C1,Ninguna,0.0,0.0,NaN,");
-        loadFails();
+        writeFile(file, "V1,2026-03-15,S1,C1,Ninguna,abc,0.0,0.0,");
+        assertCorrupt(this::load, file, 1, "el campo 'descuento' no es un numero valido: 'abc'");
+        writeFile(file, "V1,2026-03-15,S1,C1,Ninguna,-5.0,0.0,0.0,");
+        assertCorrupt(this::load, file, 1, "el campo 'descuento' no puede ser negativo: -5.0");
+        writeFile(file, "V1,2026-03-15,S1,C1,Ninguna,0.0,0.0,Infinity,");
+        assertCorrupt(this::load, file, 1, "el campo 'total' debe ser un numero finito: 'Infinity'");
+        writeFile(file, "V1,2026-03-15,S1,C1,Ninguna,0.0,0.0,NaN,");
+        assertCorrupt(this::load, file, 1, "el campo 'total' debe ser un numero finito: 'NaN'");
     }
 
     @Test
     @DisplayName("Id de venta vacio")
     void loadFailsWithBlankId() throws IOException {
-        writeFile(",2026-03-15,S1,C1,Ninguna,0.0,0.0,0.0,");
-        loadFails();
+        writeFile(file, ",2026-03-15,S1,C1,Ninguna,0.0,0.0,0.0,");
+        assertCorrupt(this::load, file, 1, "el campo 'id' esta vacio");
     }
 
     @Test
     @DisplayName("Cliente o vendedor inexistente")
     void loadFailsWithUnknownClientOrSeller() throws IOException {
-        writeFile("V1,2026-03-15,S1,C99,Ninguna,0.0,0.0,0.0,");
-        assertTrue(loadFails().getMessage().contains("C99"));
-        writeFile("V1,2026-03-15,S99,C1,Ninguna,0.0,0.0,0.0,");
-        assertTrue(loadFails().getMessage().contains("S99"));
+        writeFile(file, "V1,2026-03-15,S1,C99,Ninguna,0.0,0.0,0.0,");
+        assertTrue(loadFails(this::load).getMessage().contains("C99"));
+        writeFile(file, "V1,2026-03-15,S99,C1,Ninguna,0.0,0.0,0.0,");
+        assertTrue(loadFails(this::load).getMessage().contains("S99"));
     }
 
     @Test
     @DisplayName("Detalles mal formados: formato, producto, cantidad, precio")
     void loadFailsWithBadDetails() throws IOException {
         String head = "V1,2026-03-15,S1,C1,Ninguna,0.0,0.0,0.0,";
-        writeFile(head + "P1:2");
-        loadFails();
-        writeFile(head + "P99:1:10.0");
-        loadFails();
-        writeFile(head + "P1:dos:10.0");
-        loadFails();
-        writeFile(head + "P1:1:gratis");
-        loadFails();
-        writeFile(head + "P1:0:10.0");
-        loadFails();
-        writeFile(head + "P1:-3:10.0");
-        loadFails();
-        writeFile(head + "P1:1:-10.0");
-        loadFails();
-        writeFile(head + "P1:1:10.0;");
-        loadFails();
+        writeFile(file, head + "P1:2");
+        assertCorrupt(this::load, file, 1, "el detalle 'P1:2' debe tener el formato producto:cantidad:precio");
+        writeFile(file, head + "P99:1:10.0");
+        assertCorrupt(this::load, file, 1, "el producto 'P99' del detalle no existe");
+        writeFile(file, head + "P1:dos:10.0");
+        assertCorrupt(this::load, file, 1, "el campo 'cantidad' no es un entero valido: 'dos'");
+        writeFile(file, head + "P1:1:gratis");
+        assertCorrupt(this::load, file, 1, "el campo 'precio' no es un numero valido: 'gratis'");
+        writeFile(file, head + "P1:0:10.0");
+        assertCorrupt(this::load, file, 1, "detalle invalido 'P1:0:10.0'");
+        writeFile(file, head + "P1:-3:10.0");
+        assertCorrupt(this::load, file, 1, "detalle invalido 'P1:-3:10.0'");
+        writeFile(file, head + "P1:1:-10.0");
+        assertCorrupt(this::load, file, 1, "detalle invalido 'P1:1:-10.0'");
+        writeFile(file, head + "P1:1:10.0;");
+        assertCorrupt(this::load, file, 1, "el detalle '' debe tener el formato producto:cantidad:precio");
     }
 
     @Test
     @DisplayName("Un archivo binario o basura no lanza excepciones inesperadas")
     void garbageFileOnlyThrowsPersistenceException() throws IOException {
         Files.write(file, new byte[]{0, 1, 2, (byte) 0xFF, (byte) 0xFE, '\n', '%', '$', ',', ','});
-        loadFails();
+        loadFails(this::load);
     }
 
     // ---------- low-level IOException wrapped ----------
@@ -302,7 +297,7 @@ class SaleRepositoryTest {
         SaleRepository repo = new SaleRepository(dir.toString());
 
         PersistenceException e = assertThrows(PersistenceException.class,
-                () -> repo.loadAll(List.of(client), List.of(seller), List.of(game), List.of(), List.of()));
+                () -> repo.loadAll(List.of(client), List.of(seller), List.of(game), List.of()));
 
         assertInstanceOf(IOException.class, e.getCause());
         assertTrue(e.getMessage().contains(dir.toString()));
