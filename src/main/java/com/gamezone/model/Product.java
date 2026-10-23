@@ -77,6 +77,7 @@ public abstract class Product {
     public boolean canOfferExtendedWarranty() {
         return false;
     }
+
     /**
      * Tells whether there is enough stock to serve the given quantity.
      *
@@ -86,6 +87,7 @@ public abstract class Product {
     public boolean hasStockFor(int quantity) {
         return stock >= quantity;
     }
+
     /**
      * Reduces the available stock by the given quantity.
      *
@@ -97,7 +99,7 @@ public abstract class Product {
         if (quantity <= 0) {
             throw new IllegalArgumentException("La cantidad a descontar debe ser mayor que cero.");
         }
-         if (!hasStockFor(quantity)){
+        if (!hasStockFor(quantity)) {
             throw new IllegalArgumentException("Stock insuficiente: disponible " + stock + ", solicitado " + quantity);
         }
         this.stock -= quantity;
@@ -116,5 +118,28 @@ public abstract class Product {
             throw new IllegalArgumentException("La cantidad a restaurar debe ser mayor que cero.");
         }
         this.stock += quantity;
+    }
+    
+    /**
+     * Reduces the stored stock of this item. Products are kept by the product
+     * stock holder; subclasses stored elsewhere override this method.
+     *
+     * @param productStock the holder of the products stock
+     * @param accessoryStock the holder of the accessories stock
+     * @param quantity the units to subtract
+     */
+    public void updateStock(StockUpdater productStock, StockUpdater accessoryStock, int quantity) {
+        productStock.updateStock(getId(), quantity);
+    }
+
+    /**
+     * Restores the stored stock of this item (for example after a return).
+     *
+     * @param productStock the holder of the products stock
+     * @param accessoryStock the holder of the accessories stock
+     * @param quantity the units to add back
+     */
+    public void restoreStock(StockUpdater productStock, StockUpdater accessoryStock, int quantity) {
+        productStock.restoreStock(getId(), quantity);
     }
 }
