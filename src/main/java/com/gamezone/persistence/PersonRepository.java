@@ -4,11 +4,6 @@ import com.gamezone.exceptions.PersistenceException;
 import com.gamezone.model.Client;
 import com.gamezone.model.Seller;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +15,7 @@ import java.util.List;
  *
  * <p>Every low-level {@link IOException} is wrapped in a
  * {@link PersistenceException}; corrupt file content is reported with the
- * file name and line number.</p>
+ * file name and line number.</p> 
  */
 public class PersonRepository {
 
@@ -113,7 +108,7 @@ public class PersonRepository {
             }
             lines.add(clientToCsvLine(client));
         }
-        writeLines(clientsFile, lines, "cliente(s)");
+        CsvSupport.writeLines(clientsFile, lines, "cliente(s)");
     }
 
     /**
@@ -137,27 +132,7 @@ public class PersonRepository {
             }
             lines.add(sellerToCsvLine(seller));
         }
-        writeLines(sellersFile, lines, "vendedor(es)");
-    }
-
-    /**
-     * Writes the given lines to a file, wrapping any I/O error.
-     *
-     * @param path the file to write
-     * @param lines the lines to write
-     * @param what plural description of the saved entities, for the error message
-     * @throws PersistenceException if an I/O error occurs
-     */
-    private void writeLines(String path, List<String> lines, String what) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(path))) {
-            for (String line : lines) {
-                writer.write(line);
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron guardar " + lines.size() + " " + what
-                    + " en '" + path + "'", e);
-        }
+        CsvSupport.writeLines(sellersFile, lines, "vendedor(es)");
     }
 
     /**
@@ -170,41 +145,32 @@ public class PersonRepository {
      *         the file contains a malformed line
      */
     public List<Client> loadClients() {
-        List<Client> clients = new ArrayList<>();
-        File file = new File(clientsFile);
+        return CsvSupport.readLines(clientsFile, "los clientes", this::csvLineToClient);
+    }
 
-        if (!file.exists()) {
-            return clients;
+    /**
+     * Reconstructs a single Client from one CSV line.
+     *
+     * @param line a single line read from the CSV file
+     * @param lineNumber the 1-based number of the line, used in error messages
+     * @return the reconstructed Client object
+     * @throws PersistenceException if the line is malformed
+     */
+    private Client csvLineToClient(String line, int lineNumber) {
+        String[] parts = line.split(",", -1);
+        // id,name,phone,email[,purchases]
+        if (parts.length != 4 && parts.length != 5) {
+            throw CsvSupport.corruptLine(clientsFile, lineNumber,
+                    "se esperaban 4 o 5 columnas pero hay " + parts.length, null);
         }
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            int lineNumber = 0;
-            while ((line = reader.readLine()) != null) {
-                lineNumber++;
-                if (line.isBlank()) {
-                    continue;
-                }
-                String[] parts = line.split(",", -1);
-                // id,name,phone,email[,purchases]
-                if (parts.length != 4 && parts.length != 5) {
-                    throw CsvSupport.corruptLine(clientsFile, lineNumber,
-                            "se esperaban 4 o 5 columnas pero hay " + parts.length, null);
-                }
-                CsvSupport.requireNotBlank(parts[0], "id", clientsFile, lineNumber);
-                Client client = new Client(parts[3], parts[0], parts[1], parts[2]);
-                if (parts.length == 5 && !parts[4].isEmpty()) {
-                    for (String saleId : parts[4].split(";")) {
-                        client.addPurchase(saleId);
-                    }
-                }
-                clients.add(client);
+        CsvSupport.requireNotBlank(parts[0], "id", clientsFile, lineNumber);
+        Client client = new Client(parts[3], parts[0], parts[1], parts[2]);
+        if (parts.length == 5 && !parts[4].isEmpty()) {
+            for (String saleId : parts[4].split(";")) {
+                client.addPurchase(saleId);
             }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron leer los clientes desde '" + clientsFile + "'", e);
         }
-
-        return clients;
+        return client;
     }
 
     /**
@@ -217,31 +183,22 @@ public class PersonRepository {
      *         the file contains a malformed line
      */
     public List<Seller> loadSellers() {
-        List<Seller> sellers = new ArrayList<>();
-        File file = new File(sellersFile);
+        return CsvSupport.readLines(sellersFile, "los vendedores", this::csvLineToSeller);
+    }
 
-        if (!file.exists()) {
-            return sellers;
-        }
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            int lineNumber = 0;
-            while ((line = reader.readLine()) != null) {
-                lineNumber++;
-                if (line.isBlank()) {
-                    continue;
-                }
-                String[] parts = line.split(",", -1);
-                CsvSupport.requireColumns(parts, SELLER_COLUMNS, sellersFile, lineNumber);
-                CsvSupport.requireNotBlank(parts[0], "id", sellersFile, lineNumber);
-                // id,name,phone,employeeCode,shift
-                sellers.add(new Seller(parts[3], parts[4], parts[0], parts[1], parts[2]));
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron leer los vendedores desde '" + sellersFile + "'", e);
-        }
-
-        return sellers;
+    /**
+     * Reconstructs a single Seller from one CSV line.
+     *
+     * @param line a single line read from the CSV file
+     * @param lineNumber the 1-based number of the line, used in error messages
+     * @return the reconstructed Seller object
+     * @throws PersistenceException if the line is malformed
+     */
+    private Seller csvLineToSeller(String line, int lineNumber) {
+        String[] parts = line.split(",", -1);
+        CsvSupport.requireColumns(parts, SELLER_COLUMNS, sellersFile, lineNumber);
+        CsvSupport.requireNotBlank(parts[0], "id", sellersFile, lineNumber);
+        // id,name,phone,employeeCode,shift
+        return new Seller(parts[3], parts[4], parts[0], parts[1], parts[2]);
     }
 }
