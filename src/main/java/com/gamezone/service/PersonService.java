@@ -25,14 +25,6 @@ public class PersonService {
     private PersonRepository repository;
 
     /**
-     * Creates the service using a default repository instance and loads
-     * any previously saved clients and sellers from their files.
-     */
-    public PersonService() {
-        this(new PersonRepository());
-    }
-
-    /**
      * Creates the service using the provided repository instance.
      *
      * @param repository the repository used to load and save clients and sellers
