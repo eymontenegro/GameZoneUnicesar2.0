@@ -5,9 +5,7 @@ import java.time.LocalDate;
 /**
  * Concrete promotion that applies a global percentage discount on the sale subtotal.
  */
-public class PercentageDiscount extends Promotion {
-
-    private double percentage;
+public class PercentageDiscount extends PercentageBasedPromotion {
 
     /**
      * Constructs a new PercentageDiscount promotion.
@@ -23,22 +21,11 @@ public class PercentageDiscount extends Promotion {
         setPercentage(percentage);
     }
 
-    public double getPercentage() {
-        return percentage;
-    }
-
-    public void setPercentage(double percentage) {
-        if (percentage < 0.0 || percentage > 100.0) {
-            throw new IllegalArgumentException("El porcentaje de descuento debe estar entre 0 y 100.");
-        }
-        this.percentage = percentage;
-    }
-
     @Override
     public double calculateDiscount(Sale sale) {
         if (sale == null) {
             return 0.0;
         }
-        return sale.calculateTotal() * (this.percentage / 100.0);
+        return applyPercentage(sale.calculateTotal());
     }
 }

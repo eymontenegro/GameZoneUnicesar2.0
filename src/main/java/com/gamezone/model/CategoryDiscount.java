@@ -5,9 +5,8 @@ import java.time.LocalDate;
 /**
  * Concrete promotion that applies a percentage discount only to items matching a target category.
  */
-public class CategoryDiscount extends Promotion {
+public class CategoryDiscount extends PercentageBasedPromotion {
 
-    private double percentage;
     private String targetCategory;
 
     /**
@@ -24,17 +23,6 @@ public class CategoryDiscount extends Promotion {
         super(id, name, startDate, endDate);
         setPercentage(percentage);
         setTargetCategory(targetCategory);
-    }
-
-    public double getPercentage() {
-        return percentage;
-    }
-
-    public void setPercentage(double percentage) {
-        if (percentage < 0.0 || percentage > 100.0) {
-            throw new IllegalArgumentException("El porcentaje de descuento debe estar entre 0 y 100.");
-        }
-        this.percentage = percentage;
     }
 
     public String getTargetCategory() {
@@ -63,7 +51,7 @@ public class CategoryDiscount extends Promotion {
                 }
             }
         }
-        return applicableSubtotal * (this.percentage / 100.0);
+        return applyPercentage(applicableSubtotal);
     }
 
     /**
@@ -78,14 +66,7 @@ public class CategoryDiscount extends Promotion {
             return false;
         }
 
-        String cat = category.trim().toUpperCase();
-        if (cat.equals("VIDEOGAME")) {
-            return product instanceof VideoGame;
-        } else if (cat.equals("CONSOLE")) {
-            return product instanceof Console;
-        } else if (cat.equals("ACCESSORY")) {
-            return product instanceof Accessory;
-        }
-        return false;
+                String cat = category.trim().toUpperCase();
+        return product.getCategory().name().equals(cat);
     }
 }

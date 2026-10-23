@@ -37,3 +37,15 @@ Claude (Anthropic)
 
 - Clarified how to review changes using `git diff --stat` before making commits.
 - Asked questions about commits, pushing changes, and the conventions used in the project.
+
+### Phase 2 — Correction
+
+#### Applying the corrections assigned to me
+
+**2026-10-23**
+- Asked Claude to guide me in using some Windows PowerShell commands.
+- Reviewed every change with `git diff` before committing, to confirm that only the intended lines were modified and that the behavior remained the same.
+
+#### Git Commands
+
+- Asked why my `push` was rejected with the message "fetch first".

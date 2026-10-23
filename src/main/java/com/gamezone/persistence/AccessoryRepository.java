@@ -24,7 +24,7 @@ import java.util.List;
  * {@link PersistenceException}; corrupt file content is reported with the
  * file name and line number instead of being skipped silently.</p>
  */
-public class AccessoryRepository {
+public class AccessoryRepository implements AccessoryStorage {
 
     private static final String DEFAULT_FILE = "data/accessories.csv";
     private static final String CONSOLE_SEPARATOR = "\\|";
@@ -128,6 +128,7 @@ public class AccessoryRepository {
      *         unknown type, or has values that cannot be stored
      * @throws PersistenceException if an I/O error occurs while writing
      */
+    @Override
     public void saveAll(List<Accessory> accessories) {
         if (accessories == null) {
             throw new IllegalArgumentException("La lista de accesorios no puede ser nula");
@@ -226,6 +227,7 @@ public class AccessoryRepository {
      * @throws PersistenceException if an I/O error occurs while reading, or
      *         the file contains a malformed line
      */
+    @Override
     public List<Accessory> loadAll() {
         List<Accessory> accessories = new ArrayList<>();
         File file = new File(filePath);

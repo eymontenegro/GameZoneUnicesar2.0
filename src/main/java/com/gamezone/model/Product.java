@@ -50,7 +50,42 @@ public abstract class Product {
      * @return a text description of the product
      */
     public abstract String describe();
+    
+    /**
+     * Returns the commercial category this product belongs to.
+     *
+     * @return the product category
+     */
+    public abstract ProductCategory getCategory();
+    
+    /**
+     * Tells whether selling this product automatically assigns a basic
+     * warranty. Products have none unless a subclass says otherwise.
+     *
+     * @return true if a basic warranty is assigned on sale
+     */
+    public boolean includesBasicWarranty() {
+        return false;
+    }
 
+    /**
+     * Tells whether an extended warranty can be offered when this product
+     * is sold. Products cannot have one unless a subclass says otherwise.
+     *
+     * @return true if an extended warranty can be offered
+     */
+    public boolean canOfferExtendedWarranty() {
+        return false;
+    }
+    /**
+     * Tells whether there is enough stock to serve the given quantity.
+     *
+     * @param quantity the number of units requested
+     * @return true if the available stock covers the quantity
+     */
+    public boolean hasStockFor(int quantity) {
+        return stock >= quantity;
+    }
     /**
      * Reduces the available stock by the given quantity.
      *
@@ -62,7 +97,7 @@ public abstract class Product {
         if (quantity <= 0) {
             throw new IllegalArgumentException("La cantidad a descontar debe ser mayor que cero.");
         }
-        if (stock < quantity) {
+         if (!hasStockFor(quantity)){
             throw new IllegalArgumentException("Stock insuficiente: disponible " + stock + ", solicitado " + quantity);
         }
         this.stock -= quantity;

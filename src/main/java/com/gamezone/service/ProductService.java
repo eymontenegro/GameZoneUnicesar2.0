@@ -3,39 +3,35 @@ package com.gamezone.service;
 import com.gamezone.exceptions.BusinessRuleException;
 import com.gamezone.exceptions.InvalidDataException;
 import com.gamezone.exceptions.ResourceNotFoundException;
-import com.gamezone.persistence.ProductRepository;
+import com.gamezone.persistence.ProductStorage;
 import com.gamezone.validation.ProductValidator;
 import com.gamezone.model.Product;
 import com.gamezone.model.VideoGame;
 import com.gamezone.model.Console;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * Applies the business rules for managing products: registering new
  * video games and consoles, listing the inventory, consulting individual
- * products, and updating stock. Uses ProductRepository to keep the file in sync.
+ * products, and updating stock. Uses a ProductStorage to keep the stored catalog in sync.
  */
 public class ProductService {
 
     private List<Product> products;
-    private ProductRepository repository;
+    private ProductStorage  repository;
+
 
     /**
-     * Creates the service with a default ProductRepository instance and loads
-     * any previously saved products from the file.
-     */
-    public ProductService() {
-        this(new ProductRepository());
-    }
-
-    /**
-     * Creates the service using the provided ProductRepository instance.
+     * Creates the service using the provided storage and loads any
++    * previously saved products from it.
      *
-     * @param repository the repository used to persist products
+     * @param repository the storage used to persist products
+     * @throws InvalidDataException if the storage is null
      */
-    public ProductService(ProductRepository repository) {
+    public ProductService(ProductStorage repository) {
         if (repository == null) {
             throw new InvalidDataException("repositorio", "no puede ser nulo");
         }
@@ -124,12 +120,13 @@ public class ProductService {
     }
 
     /**
-     * Returns the full list of currently available products.
-     *
-     * @return the list of products in inventory
+     * Returns the full list of currently available products as a read-only
+     *view, so products can only be added or changed through this service.
+     * 
+     * @return an unmodifiable view of the products in inventory
      */
     public List<Product> listAll() {
-        return products;
+        return Collections.unmodifiableList(products);
     }
 
     /**

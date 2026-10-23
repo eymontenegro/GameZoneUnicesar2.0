@@ -1,9 +1,7 @@
 package com.gamezone.persistence;
 
 import com.gamezone.exceptions.PersistenceException;
-import com.gamezone.model.Console;
 import com.gamezone.model.Product;
-import com.gamezone.model.VideoGame;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -12,23 +10,29 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * Handles saving and loading Product objects (VideoGame and Console)
  * to and from a CSV file, so the product catalog persists between
- * application runs.
+ * application runs. The common columns are handled here; the
+ * type-specific columns are delegated to one {@link ProductCsvMapper}
+ * per product type.
  *
  * <p>Every low-level {@link IOException} is wrapped in a
  * {@link PersistenceException}; corrupt file content is reported with the
  * file name and line number.</p>
  */
-public class ProductRepository {
+ public class ProductRepository implements ProductStorage{
 
     private static final String DEFAULT_FILE = "data/products.csv";
     private static final int COLUMNS = 8;
-
+    private static final int SPECIFIC_START = 5;
     private final String filePath;
+    private final List<ProductCsvMapper> mappers = List.of(
+            new VideoGameCsvMapper(),
+            new ConsoleCsvMapper());
 
     /**
      * Creates a repository that uses the default file {@code data/products.csv}.
@@ -51,10 +55,40 @@ public class ProductRepository {
     }
 
     /**
-     * Converts a single product into one CSV-formatted line, choosing
-     * which extra columns to include based on the product's real type.
+     * Finds the mapper that handles the given product.
      *
-     * @param product the product to convert (VideoGame or Console)
+     * @param product the product to convert
+    * @return the matching mapper, or null if no mapper supports it
+     */
+    private ProductCsvMapper mapperFor(Product product) {
+        for (ProductCsvMapper mapper : mappers) {
+            if (mapper.supports(product)) {
+                return mapper;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Finds the mapper registered for the given type code.
+     *
+     * @param typeCode the code read from the first column
+     * @return the matching mapper, or null if the code is unknown
+     */
+    private ProductCsvMapper mapperFor(String typeCode) {
+        for (ProductCsvMapper mapper : mappers) {
+            if (mapper.typeCode().equals(typeCode)) {
+                return mapper;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Converts a single product into one CSV-formatted line, delegating
+     * the extra columns to the mapper of the product's real type.
+     *
+     * @param product the product to convert (any type with a registered mapper)
      * @return a comma-separated line representing the product
      * @throws IllegalArgumentException if the product type is not recognized
      *         or any of its values cannot be stored safely
@@ -69,26 +103,20 @@ public class ProductRepository {
                 + product.getPrice() + ","
                 + product.getStock();
 
-        String type;
-        String specificData;
-
-        if (product instanceof VideoGame) {
-            VideoGame vg = (VideoGame) product;
-            type = "VIDEOGAME";
-            specificData = CsvSupport.safe(vg.getPlatform(), "platform") + ","
-                    + CsvSupport.safe(vg.getGenre(), "genre") + ","
-                    + CsvSupport.safe(vg.getAgeRating(), "ageRating");
-        } else if (product instanceof Console) {
-            Console c = (Console) product;
-            type = "CONSOLE";
-            specificData = CsvSupport.safe(c.getBrand(), "brand") + ","
-                    + CsvSupport.safe(c.getModel(), "model") + ","
-                    + CsvSupport.safe(c.getGeneration(), "generation");
-        } else {
+        ProductCsvMapper mapper = mapperFor(product);
+        if (mapper == null) {
             throw new IllegalArgumentException("Unknown product type");
         }
+        
+        String[] names = mapper.specificColumnNames();
+        String[] values = mapper.toSpecificColumns(product);
+        List<String> specificData = new ArrayList<>();
+        for (int i = 0; i < values.length; i++) {
+            specificData.add(CsvSupport.safe(values[i], names[i]));
+        }
 
-        return type + "," + commonData + "," + specificData;
+        return mapper.typeCode() + "," + commonData + "," + String.join(",", specificData);
+        
     }
 
     /**
@@ -102,6 +130,7 @@ public class ProductRepository {
      *         unknown type, or has values that cannot be stored
      * @throws PersistenceException if an I/O error occurs while writing
      */
+   @Override
    public void saveAll(List<Product> products){
         if (products == null) {
             throw new IllegalArgumentException("La lista de productos no puede ser nula");
@@ -163,13 +192,11 @@ public class ProductRepository {
             throw CsvSupport.corruptLine(filePath, lineNumber, "el stock no puede ser negativo: " + stock, null);
         }
 
-        if (type.equals("VIDEOGAME")) {
-            return new VideoGame(parts[5], parts[6], parts[7], id, title, price, stock);
-        } else if (type.equals("CONSOLE")) {
-            return new Console(parts[5], parts[6], parts[7], id, title, price, stock);
-        } else {
+        ProductCsvMapper mapper = mapperFor(type);
+        if (mapper == null) {
             throw CsvSupport.corruptLine(filePath, lineNumber, "tipo de producto desconocido: '" + type + "'", null);
         }
+         return mapper.fromColumns(id, title, price, stock, Arrays.copyOfRange(parts, SPECIFIC_START, COLUMNS));
     }
 
     /**
@@ -181,6 +208,7 @@ public class ProductRepository {
      * @throws PersistenceException if an I/O error occurs while reading, or
      *         the file contains a malformed line
      */
+    @Override
     public List<Product> load() {
         List<Product> products = new ArrayList<>();
         File file = new File(filePath);
