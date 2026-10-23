@@ -6,11 +6,6 @@ import com.gamezone.model.ExtendedWarranty;
 import com.gamezone.model.Product;
 import com.gamezone.model.Sale;
 import com.gamezone.model.Warranty;
-import com.gamezone.persistence.AccessoryRepository;
-import com.gamezone.persistence.PersonRepository;
-import com.gamezone.persistence.ProductRepository;
-import com.gamezone.persistence.PromotionRepository;
-import com.gamezone.persistence.SaleRepository;
 import com.gamezone.persistence.WarrantyRepository;
 import com.gamezone.validation.WarrantyValidator;
 
@@ -32,20 +27,6 @@ public class WarrantyService {
 
     private final List<Warranty> warranties;
     private final WarrantyRepository repository;
-
-    /**
-     * Creates the service with a default WarrantyRepository instance
-     * injecting all required dependency repositories and loads previously saved warranties.
-     */
-    public WarrantyService() {
-        this(new WarrantyRepository(
-            new SaleRepository(),
-            new ProductRepository(),
-            new PersonRepository(),
-            new AccessoryRepository(),
-            new PromotionRepository()
-        ));
-    }
 
     /**
      * Creates the service injecting the repository, loading previously
