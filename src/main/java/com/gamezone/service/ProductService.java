@@ -10,6 +10,7 @@ import com.gamezone.model.VideoGame;
 import com.gamezone.model.Console;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -119,12 +120,13 @@ public class ProductService {
     }
 
     /**
-     * Returns the full list of currently available products.
-     *
-     * @return the list of products in inventory
+     * Returns the full list of currently available products as a read-only
+     *view, so products can only be added or changed through this service.
+     * 
+     * @return an unmodifiable view of the products in inventory
      */
     public List<Product> listAll() {
-        return products;
+        return Collections.unmodifiableList(products);
     }
 
     /**
