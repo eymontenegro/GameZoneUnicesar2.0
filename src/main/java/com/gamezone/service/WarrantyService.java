@@ -123,10 +123,7 @@ public class WarrantyService {
         synchronized (warranties) {
             return warranties.stream()
                     .filter(Objects::nonNull)
-                    .filter(w -> {
-                        LocalDate endDate = w.getEndDate();
-                        return endDate != null && !endDate.isBefore(today) && !endDate.isAfter(limit);
-                    })
+                    .filter(w -> w.expiresBetween(today, limit))
                     .collect(Collectors.toList());
         }
     }
