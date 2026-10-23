@@ -63,6 +63,15 @@ public class Memory extends CompatibleAccessory {
     public void setType(String type) {
         this.type = type;
     }
+        /**
+     * Returns the kind of this accessory.
+     *
+     * @return {@code "MEMORY"}
+     */
+    @Override
+    public String getAccessoryKind() {
+        return "MEMORY";
+    }
 
     /**
      * Provides a text description of the memory accessory.

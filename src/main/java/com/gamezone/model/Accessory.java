@@ -27,6 +27,14 @@ public abstract class Accessory extends Product {
     public ProductCategory getCategory() {
         return ProductCategory.ACCESSORY;
     }
+    
+    /**
+     * Returns the kind of accessory, as the text used to list accessories
+     * by type ("CONTROLLER", "CABLE" or "MEMORY").
+     *
+     * @return the accessory kind
+     */
+    public abstract String getAccessoryKind();
 }
  
      

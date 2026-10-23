@@ -42,6 +42,15 @@ public class Controller extends CompatibleAccessory {
     public void setConnectionType(String connectionType) {
         this.connectionType = connectionType;
     }
+        /**
+     * Returns the kind of this accessory.
+     *
+     * @return {@code "CONTROLLER"}
+     */
+    @Override
+    public String getAccessoryKind() {
+        return "CONTROLLER";
+    }
 
     /**
      * Provides a text description of the controller accessory.

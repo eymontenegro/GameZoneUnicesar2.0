@@ -63,6 +63,15 @@ public class Cable extends Accessory {
     public void setConnectorType(String connectorType) {
         this.connectorType = connectorType;
     }
+        /**
+     * Returns the kind of this accessory.
+     *
+     * @return {@code "CABLE"}
+     */
+    @Override
+    public String getAccessoryKind() {
+        return "CABLE";
+    }
 
     /**
      * Provides a text description of the cable.
