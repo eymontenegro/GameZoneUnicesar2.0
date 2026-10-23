@@ -5,10 +5,9 @@ import java.time.LocalDate;
 /**
  * Concrete promotion that applies a percentage discount if total items reach or exceed a threshold.
  */
-public class BulkPurchaseDiscount extends Promotion {
+public class BulkPurchaseDiscount extends PercentageBasedPromotion {
 
     private int minimumQuantity;
-    private double percentage;
 
     /**
      * Constructs a new BulkPurchaseDiscount promotion.
@@ -37,17 +36,6 @@ public class BulkPurchaseDiscount extends Promotion {
         this.minimumQuantity = minimumQuantity;
     }
 
-    public double getPercentage() {
-        return percentage;
-    }
-
-    public void setPercentage(double percentage) {
-        if (percentage < 0.0 || percentage > 100.0) {
-            throw new IllegalArgumentException("El porcentaje de descuento debe estar entre 0 y 100.");
-        }
-        this.percentage = percentage;
-    }
-
     @Override
     public double calculateDiscount(Sale sale) {
         if (sale == null || sale.getDetails() == null) {
@@ -62,7 +50,7 @@ public class BulkPurchaseDiscount extends Promotion {
         }
 
         if (totalUnits >= minimumQuantity) {
-            return sale.calculateTotal() * (percentage / 100.0);
+            return applyPercentage(sale.calculateTotal());
         }
 
         return 0.0;

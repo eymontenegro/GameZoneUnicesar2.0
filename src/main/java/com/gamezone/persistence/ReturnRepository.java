@@ -25,7 +25,7 @@ import java.util.Map;
  * sale or product that does not exist, is reported with the file name and
  * line number instead of being skipped silently.</p>
  */
-public class ReturnRepository {
+public class ReturnRepository implements ReturnStorage {
 
     private static final String DEFAULT_FILE = "data/returns.csv";
     private static final int COLUMNS = 6;
@@ -98,6 +98,7 @@ public class ReturnRepository {
      *         values that cannot be stored
      * @throws PersistenceException if an I/O error occurs while writing
      */
+    @Override
     public void saveAll(List<Return> returns) {
         if (returns == null) {
             throw new IllegalArgumentException("La lista de devoluciones no puede ser nula");
@@ -204,6 +205,7 @@ public class ReturnRepository {
      * @throws PersistenceException if an I/O error occurs while reading, or the
      *         file contains a malformed line or a reference that cannot be resolved
      */
+    @Override
     public List<Return> loadAll(List<Sale> sales) {
         Map<String, Sale> saleMap = new HashMap<>();
         if (sales != null) {

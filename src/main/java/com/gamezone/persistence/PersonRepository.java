@@ -17,7 +17,7 @@ import java.util.List;
  * {@link PersistenceException}; corrupt file content is reported with the
  * file name and line number.</p> 
  */
-public class PersonRepository {
+public class PersonRepository implements PersonStorage {
 
     private static final String DEFAULT_CLIENTS_FILE = "data/clients.csv";
     private static final String DEFAULT_SELLERS_FILE = "data/sellers.csv";
@@ -97,6 +97,7 @@ public class PersonRepository {
      *         values that cannot be stored
      * @throws PersistenceException if an I/O error occurs while writing
      */
+    @Override
     public void saveClients(List<Client> clients) {
         if (clients == null) {
             throw new IllegalArgumentException("La lista de clientes no puede ser nula");
@@ -144,6 +145,7 @@ public class PersonRepository {
      * @throws PersistenceException if an I/O error occurs while reading, or
      *         the file contains a malformed line
      */
+    @Override
     public List<Client> loadClients() {
         return CsvSupport.readLines(clientsFile, "los clientes", this::csvLineToClient);
     }
@@ -182,6 +184,7 @@ public class PersonRepository {
      * @throws PersistenceException if an I/O error occurs while reading, or
      *         the file contains a malformed line
      */
+    @Override
     public List<Seller> loadSellers() {
         return CsvSupport.readLines(sellersFile, "los vendedores", this::csvLineToSeller);
     }

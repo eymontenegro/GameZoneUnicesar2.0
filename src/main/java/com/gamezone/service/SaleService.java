@@ -12,7 +12,7 @@ import com.gamezone.model.Sale;
 import com.gamezone.model.SaleDetail;
 import com.gamezone.model.Seller;
 import com.gamezone.model.Warranty;
-import com.gamezone.persistence.SaleRepository;
+import com.gamezone.persistence.SaleStorage;
 import com.gamezone.validation.ProductValidator;
 import com.gamezone.validation.SaleValidator;
 
@@ -25,37 +25,36 @@ import java.util.Objects;
 /**
  * Applies the business rules for processing transactions/sales in GameZone.
  * Coordinates stock reduction, promotional discount calculation, client purchase history updates,
- * automatic and optional warranty assignment, and persistence using SaleRepository.
+ * automatic and optional warranty assignment, and persistence using SaleStorage.
  */
 public class SaleService {
 
     private final List<Sale> sales;
-    private final SaleRepository saleRepository;
+    private final SaleStorage saleStorage;
     private final PersonService personService;
     private final ProductService productService;
     private final AccessoryService accessoryService;
     private final PromotionService promotionService;
     private final WarrantyService warrantyService;
 
-    public SaleService(SaleRepository saleRepository,
+    public SaleService(SaleStorage saleStorage,
                        PersonService personService,
                        ProductService productService,
                        AccessoryService accessoryService,
                        PromotionService promotionService,
                        WarrantyService warrantyService) {
-        this.saleRepository = Objects.requireNonNull(saleRepository, "SaleRepository cannot be null");
+        this.saleStorage = Objects.requireNonNull(saleStorage, "SaleStorage cannot be null");
         this.personService = Objects.requireNonNull(personService, "PersonService cannot be null");
         this.productService = Objects.requireNonNull(productService, "ProductService cannot be null");
         this.accessoryService = Objects.requireNonNull(accessoryService, "AccessoryService cannot be null");
         this.promotionService = Objects.requireNonNull(promotionService, "PromotionService cannot be null");
         this.warrantyService = Objects.requireNonNull(warrantyService, "WarrantyService cannot be null");
 
-        List<Sale> loadedSales = saleRepository.loadAll(
+        List<Sale> loadedSales = saleStorage.loadAll(
                 personService.listClients(),
                 personService.listSellers(),
                 productService.listAll(),
-                accessoryService.listAllAccessories(),
-                promotionService.listAllPromotions()
+                accessoryService.listAllAccessories()
         );
         this.sales = Collections.synchronizedList(loadedSales != null ? new ArrayList<>(loadedSales) : new ArrayList<>());
     }
@@ -65,15 +64,22 @@ public class SaleService {
             throw new InvalidDataException("identificador del producto", "no puede ser nulo ni vacío");
         }
 
-        return productService.listAll().stream()
-                .filter(p -> p != null && productId.equals(p.getId()))
-                .findFirst()
-                .map(p -> (Product) p)
-                .orElseGet(() -> accessoryService.listAllAccessories().stream()
-                        .filter(a -> a != null && productId.equals(a.getId()))
-                        .findFirst()
-                        .orElseThrow(() -> new ResourceNotFoundException("producto o accesorio", productId))
-                );
+        // Each catalog is the expert on its own items: ask the product service first,
+        // then the accessory service, and only combine the answers here.
+        try {
+            Product product = productService.findById(productId);
+            if (product != null) {
+                return product;
+            }
+        } catch (ResourceNotFoundException ignored) {
+            // not a product: fall back to the accessory catalog
+        }
+
+        try {
+            return accessoryService.findById(productId);
+        } catch (ResourceNotFoundException ex) {
+            throw new ResourceNotFoundException("producto o accesorio", productId);
+        }
     }
 
     public Sale processSale(String saleId, String clientId, String sellerId, List<SaleDetail> items,
@@ -132,7 +138,7 @@ public class SaleService {
 
             // 7. Persist
             sales.add(sale);
-            saleRepository.saveAll(new ArrayList<>(sales));
+            saleStorage.saveAll(new ArrayList<>(sales));
 
             return sale;
         } catch (Exception ex) {

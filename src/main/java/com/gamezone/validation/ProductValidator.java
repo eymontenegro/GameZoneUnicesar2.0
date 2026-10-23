@@ -1,7 +1,4 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
+
 package com.gamezone.validation;
 
 
@@ -54,7 +51,7 @@ public final class ProductValidator {
      * @throws BusinessRuleException if the available stock is lower than requested
      */
     public static void validateStockAvailability(Product product, int requestedQuantity) {
-        if (product.getStock() < requestedQuantity) {
+         if (!product.hasStockFor(requestedQuantity)){
             throw new BusinessRuleException("Stock insuficiente para el producto '"
                     + product.getTitle() + "': disponible " + product.getStock()
                     + ", solicitado " + requestedQuantity);

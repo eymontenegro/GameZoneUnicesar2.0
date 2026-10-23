@@ -21,7 +21,7 @@ import java.util.List;
  * {@link PersistenceException}; corrupt file content is reported with the
  * file name and line number instead of being skipped silently.</p>
  */
-public class PromotionRepository {
+public class PromotionRepository implements PromotionStorage {
 
     private static final String DEFAULT_FILE = "data/promotions.csv";
 
@@ -99,6 +99,7 @@ public class PromotionRepository {
      *         unknown type, or has values that cannot be stored
      * @throws PersistenceException if an I/O error occurs while writing
      */
+    @Override
     public void saveAll(List<Promotion> promotions) {
         if (promotions == null) {
             throw new IllegalArgumentException("La lista de promociones no puede ser nula");
@@ -180,6 +181,7 @@ public class PromotionRepository {
      * @throws PersistenceException if an I/O error occurs while reading, or
      *         the file contains a malformed line
      */
+    @Override
     public List<Promotion> loadAll() {
         return CsvSupport.readLines(filePath, "las promociones", this::csvLineToPromotion);
     }

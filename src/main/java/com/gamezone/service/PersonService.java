@@ -3,7 +3,7 @@ package com.gamezone.service;
 import com.gamezone.exceptions.BusinessRuleException;
 import com.gamezone.exceptions.InvalidDataException;
 import com.gamezone.exceptions.ResourceNotFoundException;
-import com.gamezone.persistence.PersonRepository;
+import com.gamezone.persistence.PersonStorage;
 import com.gamezone.validation.PersonValidator;
 import com.gamezone.model.Client;
 import com.gamezone.model.Seller;
@@ -16,28 +16,20 @@ import java.util.List;
  * clients, listing clients and sellers, and consulting a client's
  * purchase history. Sellers are preloaded and are not registered
  * through this service.
- * Uses PersonRepository to keep the files in sync with every change.
+ * Uses PersonStorage to keep the stored data in sync with every change.
  */
 public class PersonService {
 
     private List<Client> clients;
     private List<Seller> sellers;
-    private PersonRepository repository;
+    private PersonStorage repository;
 
     /**
-     * Creates the service using a default repository instance and loads
-     * any previously saved clients and sellers from their files.
-     */
-    public PersonService() {
-        this(new PersonRepository());
-    }
-
-    /**
-     * Creates the service using the provided repository instance.
+     * Creates the service using the provided storage instance.
      *
-     * @param repository the repository used to load and save clients and sellers
+     * @param repository the storage used to load and save clients and sellers
      */
-    public PersonService(PersonRepository repository) {
+    public PersonService(PersonStorage repository) {
         if (repository == null) {
             throw new InvalidDataException("repositorio", "no puede ser nulo");
         }

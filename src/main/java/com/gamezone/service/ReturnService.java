@@ -5,7 +5,7 @@ import com.gamezone.model.Product;
 import com.gamezone.model.Return;
 import com.gamezone.model.Sale;
 import com.gamezone.model.SaleDetail;
-import com.gamezone.persistence.ReturnRepository;
+import com.gamezone.persistence.ReturnStorage;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 public class ReturnService {
 
     private final List<Return> returns;
-    private final ReturnRepository repository;
+    private final ReturnStorage repository;
     private final SaleService saleService;
 
     /**
@@ -34,7 +34,7 @@ public class ReturnService {
      * @param repository  the repository used to persist returns
      * @param saleService the service used to look up original sales and restore stock
      */
-    public ReturnService(ReturnRepository repository, SaleService saleService) {
+    public ReturnService(ReturnStorage repository, SaleService saleService) {
         this.repository = Objects.requireNonNull(repository, "ReturnRepository cannot be null.");
         this.saleService = Objects.requireNonNull(saleService, "SaleService cannot be null.");
 
