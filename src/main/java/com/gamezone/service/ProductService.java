@@ -22,13 +22,6 @@ public class ProductService {
     private List<Product> products;
     private ProductRepository repository;
 
-    /**
-     * Creates the service with a default ProductRepository instance and loads
-     * any previously saved products from the file.
-     */
-    public ProductService() {
-        this(new ProductRepository());
-    }
 
     /**
      * Creates the service using the provided ProductRepository instance.
