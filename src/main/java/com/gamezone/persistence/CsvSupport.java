@@ -2,16 +2,42 @@ package com.gamezone.persistence;
 
 import com.gamezone.exceptions.PersistenceException;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Package-private helpers shared by the repositories to validate values
- * before they are written to a CSV file and to report corrupt lines with a
- * consistent, descriptive message.
+ * before they are written to a CSV file, to read and write the files line by
+ * line, and to report corrupt lines with a consistent, descriptive message.
  */
 final class CsvSupport {
+
+    /**
+     * Converts one non-blank line of a file into a domain object.
+     *
+     * @param <T> the type of object built from each line
+     */
+    @FunctionalInterface
+    interface LineParser<T> {
+
+        /**
+         * Parses one line.
+         *
+         * @param line the raw line
+         * @param lineNumber the 1-based line number, used in error messages
+         * @return the object built from the line
+         * @throws PersistenceException if the line is malformed
+         */
+        T parse(String line, int lineNumber);
+    }
 
     private CsvSupport() {
     }
@@ -192,6 +218,65 @@ final class CsvSupport {
             throw corruptLine(filePath, lineNumber,
                     "el campo '" + fieldName + "' no es una fecha valida (yyyy-MM-dd): '" + text + "'", e);
         }
+    }
+
+    /**
+     * Writes the given lines to a file, overwriting any previous content, and
+     * wraps any I/O error. It does not create the folder: call
+     * {@link #ensureParentDirectory(File, String)} first when that is wanted.
+     *
+     * @param filePath the file to write
+     * @param lines the lines to write
+     * @param what plural description of the saved entities, used in the error message
+     * @throws PersistenceException if an I/O error occurs
+     */
+    static void writeLines(String filePath, List<String> lines, String what) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+            for (String line : lines) {
+                writer.write(line);
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            throw new PersistenceException("No se pudieron guardar " + lines.size() + " " + what
+                    + " en '" + filePath + "'", e);
+        }
+    }
+
+    /**
+     * Reads a file line by line and converts each non-blank line with the
+     * given parser. A file that does not exist yet (first run) gives an empty
+     * list; blank lines are skipped but still counted in the line numbers.
+     *
+     * @param <T> the type of object built from each line
+     * @param filePath the file to read
+     * @param what plural description of the loaded entities, used in the error message
+     * @param parser converts one line into an object
+     * @return the objects built from the file, in file order
+     * @throws PersistenceException if an I/O error occurs or a line is malformed
+     */
+    static <T> List<T> readLines(String filePath, String what, LineParser<T> parser) {
+        List<T> items = new ArrayList<>();
+        File file = new File(filePath);
+
+        if (!file.exists()) {
+            return items;
+        }
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            int lineNumber = 0;
+            while ((line = reader.readLine()) != null) {
+                lineNumber++;
+                if (line.isBlank()) {
+                    continue;
+                }
+                items.add(parser.parse(line, lineNumber));
+            }
+        } catch (IOException e) {
+            throw new PersistenceException("No se pudieron leer " + what + " desde '" + filePath + "'", e);
+        }
+
+        return items;
     }
 
     /**
