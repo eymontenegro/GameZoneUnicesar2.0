@@ -85,9 +85,10 @@ The project implements an Object-Oriented 5-Layer Architecture:
 GameZoneUnicesar/
 │
 ├── data/                         # Persistence files (.csv)
-│   ├── accessories.csv
+│   ├── promotions.csv
 │   ├── sellers.csv
-│   └── promotions.csv
+│   └── accessories.csv
+│   
 │
 ├── src/main/java/com/gamezone/
 │   ├── model/                    # Domain layer
@@ -101,8 +102,12 @@ GameZoneUnicesar/
 │   │   ├── Controller.java
 │   │   ├── Cable.java
 │   │   ├── Memory.java
+│   │   ├── ProductCategory.java
 │   │   ├── ConsoleCompatible.java
 │   │   ├── Promotion.java
+│   │   ├── StockUpdater.java
+│   │   ├── CompatibleAccessory.java
+│   │   ├── PercentageBasedPromotion.java
 │   │   ├── PercentageDiscount.java
 │   │   ├── CategoryDiscount.java
 │   │   ├── BulkPurchaseDiscount.java
@@ -121,21 +126,35 @@ GameZoneUnicesar/
 │   │   └── PersistenceException.java
 │   │
 │   ├── validation/               # Validation layer 
+│   │   ├── PromotionValidator.java
 │   │   ├── ProductValidator.java
 │   │   ├── PersonValidator.java
+│   │   ├── AccessoryValidator.java
+│   │   ├── WarrantyValidator.java
 │   │   └── SaleValidator.java
 │   │
 │   ├── persistence/              # Persistence layer
 │   │   ├── PersonRepository.java
 │   │   ├── ProductRepository.java
-│   │   ├── AccessoryRepository.java
+│   │   ├── AccessoryStorage.java
 │   │   ├── PromotionRepository.java
+│   │   ├── ConsoleCsvMapper.java
+│   │   ├── VideoGameCsvMapper.java
+│   │   ├── ProductCsvMapper.java
+│   │   ├── PersonStorage.java
+│   │   ├── ProductStorage.java
+│   │   ├── PromotionStorage.java
+│   │   ├── ReturnStorage.java
+│   │   ├── SaleStorage.java
+│   │   ├── AccessoryRepository.java
 │   │   ├── SaleRepository.java
 │   │   ├── ReturnRepository.java
-│   │   └── WarrantyRepository.java
+│   │   ├── WarrantyRepository.java
+│   │   └── CsvSupport.java           # Shared CSV validation helper
 │   │
 │   ├── service/                  # Business logic layer
 │   │   ├── PersonService.java
+│   │   ├── MonthlyBalanceService.java
 │   │   ├── ProductService.java
 │   │   ├── AccessoryService.java
 │   │   ├── PromotionService.java
@@ -143,22 +162,53 @@ GameZoneUnicesar/
 │   │   ├── ReturnService.java
 │   │   └── WarrantyService.java
 │   │
-│   ├── ui/                      # Presentation layer
-│   │   ├── Menu                  
-│   │   └── SubMenu
+│   ├── ui/                       # Presentation layer
+│   │   ├── Menu.java
+│   │   ├── AccessorySubMenu.java
+│   │   ├── PersonSubMenu.java
+│   │   ├── PromotionSubMenu.java
+│   │   ├── ProductSubMenu.java
+│   │   ├── SaleSubMenu.java
+│   │   ├── SaleReceiptFormatter.java
+│   │   ├── ReturnSubMenu.java
+│   │   ├── WarrantySubMenu.java
+│   │   ├── WarrantyCertificateFormatter.java
+│   │   └── ConsoleInput.java
 │   │
 │   └── Main.java                 # Entry point
+│
+├── src/test/java/com/gamezone/persistence/   # Repository tests
+│   ├── ProductRepositoryTest.java
+│   ├── AccessoryRepositoryTest.java
+│   ├── PromotionRepositoryTest.java
+│   ├── SaleRepositoryTest.java
+│   ├── ReturnRepositoryTest.java
+│   ├── WarrantyRepositoryTest.java
+│   ├── CsvTestSupport.java
+│   └── PersonRepositoryTest.java      
 │
 ├── docs/                         # Analysis and design documentation
 │   ├── analysis.md
 │   ├── class-diagram.md
 │   ├── hierarchy-diagram.md
 │   ├── layers-diagram.md
-│   └── ai-usage/
-│       ├── developer1-ai-log.md
-│       ├── developer2-ai-log.md
-│       ├── developer3-ai-log.md
-│       └── leader-ai-log.md
+│   ├── grasp-class-diagram.md
+│   ├── grasp-hierarchy-diagram.md
+│   ├── grasp-layers-diagram.md
+│   ├── ai-usage/
+│   │   ├── developer1-ai-log.md
+│   │   ├── developer2-ai-log.md
+│   │   ├── developer3-ai-log.md
+│   │   └── leader-ai-log.md
+│   │ 
+│   └── grasp-audit.md
+│       ├── developer1-audit.md
+│       ├── leader-audit.md
+│       ├── consolidated-audit.md
+│       ├── developer2-audit.md
+│       └── developer3-audit.md
+│
+│
 ├── TEAM.md
 └── README.md
 ```
