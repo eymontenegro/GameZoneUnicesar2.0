@@ -124,14 +124,7 @@ public class AccessoryService {
     }
 
     private boolean matchesType(Accessory accessory, String type) {
-        if ("CONTROLLER".equalsIgnoreCase(type)) {
-            return accessory instanceof Controller;
-        } else if ("CABLE".equalsIgnoreCase(type)) {
-            return accessory instanceof Cable;
-        } else if ("MEMORY".equalsIgnoreCase(type)) {
-            return accessory instanceof Memory;
-        }
-        return false;
+        return accessory.getAccessoryKind().equalsIgnoreCase(type);
     }
 
     /**
