@@ -1,3 +1,4 @@
+```mermaid
 flowchart TD
     subgraph UI["ui"]
         Menu
@@ -72,3 +73,4 @@ flowchart TD
     SERVICE ..> EXCEPTIONS : throws
     PERSISTENCE ..> EXCEPTIONS : wraps/throws
     PERSISTENCE --> MODEL
+```

@@ -1,3 +1,4 @@
+```mermaid
 classDiagram
     direction TB
 
@@ -90,3 +91,4 @@ classDiagram
     class ProductValidator
     class PersonValidator
     class SaleValidator
+```
