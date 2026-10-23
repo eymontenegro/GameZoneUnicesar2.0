@@ -6,11 +6,7 @@ import com.gamezone.model.Cable;
 import com.gamezone.model.Controller;
 import com.gamezone.model.Memory;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -144,15 +140,7 @@ public class AccessoryRepository implements AccessoryStorage {
         File file = new File(filePath);
         CsvSupport.ensureParentDirectory(file, "los accesorios");
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-            for (String line : lines) {
-                writer.write(line);
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron guardar " + lines.size()
-                    + " accesorio(s) en '" + filePath + "'", e);
-        }
+        CsvSupport.writeLines(filePath, lines, "accesorio(s)");
     }
 
     /**
@@ -229,28 +217,7 @@ public class AccessoryRepository implements AccessoryStorage {
      */
     @Override
     public List<Accessory> loadAll() {
-        List<Accessory> accessories = new ArrayList<>();
-        File file = new File(filePath);
-
-        if (!file.exists()) {
-            return accessories;
-        }
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            int lineNumber = 0;
-            while ((line = reader.readLine()) != null) {
-                lineNumber++;
-                if (line.isBlank()) {
-                    continue;
-                }
-                accessories.add(csvLineToAccessory(line, lineNumber));
-            }
-        } catch (IOException e) {
-            throw new PersistenceException("No se pudieron leer los accesorios desde '" + filePath + "'", e);
-        }
-
-        return accessories;
+        return CsvSupport.readLines(filePath, "los accesorios", this::csvLineToAccessory);
     }
 
     /**
