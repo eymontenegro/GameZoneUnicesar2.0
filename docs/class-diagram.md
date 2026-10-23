@@ -1,3 +1,4 @@
+```mermaid
 classDiagram
     direction TB
 
@@ -454,3 +455,4 @@ classDiagram
     SubMenu ..> InvalidDataException : catches
     SubMenu ..> PersistenceException : catches
     SubMenu ..> GameZoneException : catches
+```
