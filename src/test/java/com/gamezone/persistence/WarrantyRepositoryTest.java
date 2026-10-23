@@ -21,6 +21,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.gamezone.persistence.CsvTestSupport.assertCorrupt;
+import static com.gamezone.persistence.CsvTestSupport.loadFails;
+import static com.gamezone.persistence.CsvTestSupport.writeFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -68,14 +71,6 @@ class WarrantyRepositoryTest {
         saleRepository.saveAll(List.of(sale));
     }
 
-    private PersistenceException loadFails() {
-        return assertThrows(PersistenceException.class, repository::loadAll);
-    }
-
-    private void writeWarranties(String... lines) throws IOException {
-        Files.writeString(warrantiesFile, String.join("\n", lines) + "\n");
-    }
-
     @Test
     @DisplayName("Round trip de garantia basica y extendida")
     void roundTrip() {
@@ -99,7 +94,7 @@ class WarrantyRepositoryTest {
     @DisplayName("Archivo inexistente: lista vacia; lineas en blanco ignoradas")
     void missingFileAndBlankLines() throws IOException {
         assertTrue(repository.loadAll().isEmpty());
-        writeWarranties("", "BASIC,G1,P2,V1,2026-03-15,2026-09-15", "  ");
+        writeFile(warrantiesFile, "", "BASIC,G1,P2,V1,2026-03-15,2026-09-15", "  ");
         assertEquals(1, repository.loadAll().size());
     }
 
@@ -142,29 +137,29 @@ class WarrantyRepositoryTest {
     @Test
     @DisplayName("load falla con columnas, tipo, fechas y referencias invalidas")
     void loadFailsOnCorruptLines() throws IOException {
-        writeWarranties("BASIC,G1,P2");
-        assertTrue(loadFails().getMessage().contains("linea 1"));
-        writeWarranties("PLATINO,G1,P2,V1,2026-03-15,2026-09-15");
-        loadFails();
-        writeWarranties("BASIC,G1,P2,V1,15/03/2026,2026-09-15");
-        loadFails();
-        writeWarranties("BASIC,G1,P2,V1,2026-03-15,nunca");
-        loadFails();
-        writeWarranties("BASIC,,P2,V1,2026-03-15,2026-09-15");
-        loadFails();
-        writeWarranties("BASIC,G1,P99,V1,2026-03-15,2026-09-15");
-        assertTrue(loadFails().getMessage().contains("P99"));
-        writeWarranties("BASIC,G1,P2,V99,2026-03-15,2026-09-15");
-        assertTrue(loadFails().getMessage().contains("V99"));
+        writeFile(warrantiesFile, "BASIC,G1,P2");
+        assertCorrupt(repository::loadAll, warrantiesFile, 1, "se esperaban 6 columnas pero hay 3");
+        writeFile(warrantiesFile, "PLATINO,G1,P2,V1,2026-03-15,2026-09-15");
+        assertCorrupt(repository::loadAll, warrantiesFile, 1, "tipo de garantia desconocido: 'PLATINO'");
+        writeFile(warrantiesFile, "BASIC,G1,P2,V1,15/03/2026,2026-09-15");
+        assertCorrupt(repository::loadAll, warrantiesFile, 1, "el campo 'startDate' no es una fecha valida (yyyy-MM-dd): '15/03/2026'");
+        writeFile(warrantiesFile, "BASIC,G1,P2,V1,2026-03-15,nunca");
+        assertCorrupt(repository::loadAll, warrantiesFile, 1, "el campo 'endDate' no es una fecha valida (yyyy-MM-dd): 'nunca'");
+        writeFile(warrantiesFile, "BASIC,,P2,V1,2026-03-15,2026-09-15");
+        assertCorrupt(repository::loadAll, warrantiesFile, 1, "el campo 'id' esta vacio");
+        writeFile(warrantiesFile, "BASIC,G1,P99,V1,2026-03-15,2026-09-15");
+        assertTrue(loadFails(repository::loadAll).getMessage().contains("P99"));
+        writeFile(warrantiesFile, "BASIC,G1,P2,V99,2026-03-15,2026-09-15");
+        assertTrue(loadFails(repository::loadAll).getMessage().contains("V99"));
     }
 
     @Test
     @DisplayName("Si un archivo del que depende esta corrupto, tambien falla con PersistenceException")
     void dependencyFailureIsReportedAsPersistenceException() throws IOException {
-        writeWarranties("BASIC,G1,P2,V1,2026-03-15,2026-09-15");
+        writeFile(warrantiesFile, "BASIC,G1,P2,V1,2026-03-15,2026-09-15");
         Files.writeString(tempDir.resolve("sales.csv"), "esto,no,es,una,venta\n");
 
-        PersistenceException e = loadFails();
+        PersistenceException e = loadFails(repository::loadAll);
 
         assertTrue(e.getMessage().contains("sales.csv"));
     }
