@@ -36,13 +36,15 @@ public class BulkPurchaseDiscount extends PercentageBasedPromotion {
         this.minimumQuantity = minimumQuantity;
     }
 
-    @Override
+        @Override
     public double calculateDiscount(Sale sale) {
         if (sale == null || sale.getDetails() == null) {
             return 0.0;
         }
 
-               if (sale.getTotalUnits() >= minimumQuantity) {
+        if (sale.getTotalUnits() >= minimumQuantity) {
+            return applyPercentage(sale.calculateTotal());
+        }
 
         return 0.0;
     }
