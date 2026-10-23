@@ -42,16 +42,7 @@ public class BulkPurchaseDiscount extends PercentageBasedPromotion {
             return 0.0;
         }
 
-        int totalUnits = 0;
-        for (SaleDetail detail : sale.getDetails()) {
-            if (detail != null) {
-                totalUnits += detail.getQuantity();
-            }
-        }
-
-        if (totalUnits >= minimumQuantity) {
-            return applyPercentage(sale.calculateTotal());
-        }
+               if (sale.getTotalUnits() >= minimumQuantity) {
 
         return 0.0;
     }
