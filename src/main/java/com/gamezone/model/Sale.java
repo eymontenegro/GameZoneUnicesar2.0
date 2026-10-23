@@ -123,23 +123,6 @@ public class Sale {
     }
 
     /**
-     * Creates a sale line for the given product and quantity, using the current
-     * price of the product, and adds it to this sale. The sale is the creator of
-     * its lines because it aggregates them.
-     *
-     * @param product the product being sold
-     * @param quantity the number of units sold
-     * @return the sale line that was created and added
-     * @throws IllegalArgumentException if the line data is invalid (as validated by {@link SaleDetail})
-     */
-    public SaleDetail addItem(Product product, int quantity) {
-        Objects.requireNonNull(product, "Product cannot be null.");
-        SaleDetail detail = new SaleDetail(product, quantity, product.getPrice());
-        addDetail(detail);
-        return detail;
-    }
-
-    /**
      * Adds an additional cost to the sale (e.g. extended warranty cost).
      *
      * @param amount the additional cost to add
