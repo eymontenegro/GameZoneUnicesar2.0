@@ -47,6 +47,29 @@ public class Return {
     public Return(String id, LocalDate date, Sale originalSale, List<Product> returnedProducts, String reason) {
         this(id, date, originalSale, returnedProducts, reason, 0.0);
     }
+        /**
+     * Rebuilds a return that was already stored, from the total refund saved
+     * with it. The products refund is recalculated from the sale, and the
+     * rest of the stored total is taken as the canceled warranty refund
+     * (differences of half a cent or less are ignored).
+     *
+     * @param id               the return identifier
+     * @param date             the date of the return
+     * @param originalSale     the original sale
+     * @param returnedProducts the returned products
+     * @param reason           the reason for the return
+     * @param storedRefund     the total refund stored for this return
+     * @return the rebuilt return, whose refund matches the stored total
+     */
+    public static Return fromStoredTotal(String id, LocalDate date, Sale originalSale,
+                                         List<Product> returnedProducts, String reason, double storedRefund) {
+        Return restored = new Return(id, date, originalSale, returnedProducts, reason, 0.0);
+        double warrantyPart = storedRefund - restored.getRefundAmount();
+        if (warrantyPart > 0.005) {
+            restored.setWarrantyRefundAmount(warrantyPart);
+        }
+        return restored;
+    }
 
     public String getId() {
         return id;
